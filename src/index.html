@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Makefile生成器</title>
+    <title>Makefile生成器 </title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* 样式代码保持不变，与之前版本相同 */
         :root {
             --primary-color: #3498db;
             --secondary-color: #2c3e50;
@@ -13,6 +15,10 @@
             --danger-color: #e74c3c;
             --light-color: #ecf0f1;
             --dark-color: #34495e;
+            --card-bg: rgba(255, 255, 255, 0.08);
+            --card-border: 1px solid rgba(255, 255, 255, 0.15);
+            --text-light: #f8f9fa;
+            --text-muted: #adb5bd;
         }
         
         * {
@@ -23,258 +29,596 @@
         }
         
         body {
-            background-color: #f8f9fa;
-            color: #333;
+            background: linear-gradient(135deg, #1a2a4c, #2c3e50);
+            color: var(--text-light);
             line-height: 1.6;
-            padding: 20px;
+            padding: 16px;
+            min-height: 100vh;
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         
         header {
             text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+            padding: 24px 16px;
+            background: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: var(--card-border);
         }
         
         header h1 {
-            font-size: 2.5rem;
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
             margin-bottom: 10px;
+            background: linear-gradient(to right, var(--primary-color), var(--success-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            padding: 0 10px;
         }
         
         header p {
-            font-size: 1.1rem;
+            font-size: clamp(1rem, 1.2vw, 1.2rem);
             opacity: 0.9;
             max-width: 700px;
-            margin: 0 auto;
+            margin: 12px auto 0;
+            color: var(--text-muted);
+            padding: 0 10px;
         }
         
         .app-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
         }
         
-        @media (max-width: 768px) {
+        @media (max-width: 1080px) {
             .app-container {
                 grid-template-columns: 1fr;
             }
         }
         
         .config-section {
-            background-color: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px 18px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: var(--card-border);
+            display: flex;
+            flex-direction: column;
+            min-height: 700px;
         }
         
         .section-title {
-            font-size: 1.4rem;
+            font-size: clamp(1.2rem, 1.8vw, 1.4rem);
             margin-bottom: 20px;
             padding-bottom: 10px;
             border-bottom: 2px solid var(--primary-color);
-            color: var(--dark-color);
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
-        .variables {
-            margin-bottom: 25px;
+        .section-title i {
+            font-size: 1.2em;
         }
         
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 18px;
         }
         
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-weight: 500;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
         }
         
-        input, textarea {
+        input, textarea, select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
-        
-        textarea {
-            min-height: 150px;
-            font-family: monospace;
-        }
-        
-        .rules-list {
-            margin-top: 20px;
-        }
-        
-        .rule-item {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            border-left: 4px solid var(--primary-color);
-        }
-        
-        .btn {
-            display: inline-block;
-            padding: 10px 15px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 500;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text-light);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
             transition: all 0.3s ease;
         }
         
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
         }
         
-        .btn-success {
-            background-color: var(--success-color);
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
         }
         
-        .btn-warning {
-            background-color: var(--warning-color);
+        textarea {
+            min-height: 100px;
+            font-family: monospace;
+            resize: vertical;
         }
         
-        .btn-danger {
-            background-color: var(--danger-color);
+        .rules-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
         
-        .btn-block {
-            display: block;
-            width: 100%;
-            text-align: center;
+        .rules-list {
+            margin-top: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 5px;
+            flex: 1;
         }
         
-        .action-buttons {
-            margin-top: 20px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+        .rule-item {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary-color);
+            transition: transform 0.3s ease;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 18px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            white-space: nowrap;
+        }
+        
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 0.85rem;
         }
         
         .preview-section {
-            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 700px;
         }
         
         .preview-header {
             display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
         
-        .copy-btn {
-            background-color: var(--secondary-color);
-        }
-        
         .makefile-preview {
-            background-color: #2d2d2d;
+            background: #1d1f27;
             color: #f8f8f2;
             padding: 20px;
-            border-radius: 6px;
+            border-radius: 12px;
+            flex: 1;
+            overflow: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: clamp(0.85rem, 1.1vw, 0.95rem);
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.7);
+            border: var(--card-border);
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 15px;
             overflow-x: auto;
-            font-family: monospace;
-            font-size: 1rem;
-            min-height: 300px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
         
-        .highlight {
-            color: #f92672; /* rule targets */
+        .tabs::-webkit-scrollbar {
+            display: none;
         }
         
-        .highlight-var {
-            color: #a6e22e; /* variables */
-        }
-        
-        .highlight-comment {
-            color: #75715e; /* comments */
-        }
-        
-        .highlight-dep {
-            color: #ae81ff; /* dependencies */
+        .tab-btn {
+            padding: 12px 18px;
+            min-width: 120px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
+            cursor: button;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            white-space: nowrap;
         }
         
         footer {
             text-align: center;
-            margin-top: 40px;
+            margin-top: 30px;
             padding: 20px;
-            color: #777;
-            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-size: clamp(0.8rem, 1vw, 0.9rem);
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 14px 18px;
+            border-radius: 8px;
+            font-size: clamp(0.9rem, 1.1vw, 1rem);
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transform: translateX(150%);
+            transition: transform 0.4s ease;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                padding: 0;
+            }
+            
+            header {
+                padding: 20px 10px;
+                margin-bottom: 16px;
+            }
+            
+            .config-section {
+                padding: 18px 14px;
+                min-height: auto;
+            }
+            
+            .rule-item {
+                padding: 14px;
+            }
+            
+            .tabs {
+                flex-wrap: nowrap;
+            }
+            
+            .tab-btn {
+                padding: 10px 14px;
+                min-width: 100px;
+                font-size: 0.85rem;
+            }
+            
+            .rules-list {
+                max-height: 300px;
+            }
+            
+            .makefile-preview {
+                padding: 16px;
+            }
+            
+            footer {
+                padding: 15px 10px;
+            }
+            
+            .btn {
+                padding: 10px 14px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            
+            header h1 {
+                font-size: 1.6rem;
+            }
+            
+            .config-section {
+                padding: 16px 10px;
+            }
+            
+            .section-title {
+                font-size: 1.2rem;
+            }
+            
+            .tab-btn {
+                padding: 10px 12px;
+                min-width: 80px;
+                font-size: 0.8rem;
+            }
+            
+            .rule-item {
+                padding: 12px;
+            }
+            
+            .preview-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .rules-list {
+                max-height: 250px;
+            }
+        }
+        
+        .responsive-font {
+            font-size: clamp(1rem, 1.5vw, 1.2rem);
+        }
+        
+        /* 高亮样式优化 */
+        .highlight {
+            color: #ff79c6; /* rule targets */
+        }
+        
+        .highlight-var {
+            color: #50fa7b; /* variables */
+        }
+        
+        .highlight-comment {
+            color: #6272a4; /* comments */
+        }
+        
+        .highlight-dep {
+            color: #bd93f9; /* dependencies */
+        }
+        
+        .highlight-cmd {
+            color: #f1fa8c; /* command */
+        }
+        
+        .highlight-special {
+            color: #8be9fd; /* special chars */
+        }
+        
+        .highlight-phony {
+            color: #ffb86c; /* phony targets */
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .flex-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .flex-grow {
+            flex: 1;
+        }
+        
+        .responsive-hide {
+            display: initial;
+        }
+        
+        @media (max-width: 768px) {
+            .responsive-hide {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Makefile 生成器</h1>
-            <p>轻松创建自定义Makefile，无需手动编写繁琐的语法</p>
+            <h1><i class="fas fa-cogs"></i> Makefile 生成器</h1>
         </header>
         
         <div class="app-container">
             <div class="config-section">
-                <h2 class="section-title">配置</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="create">
+                        <i class="fas fa-file-code responsive-hide"></i> 创建
+                    </button>
+                    <button class="tab-btn" data-tab="import">
+                        <i class="fas fa-file-import responsive-hide"></i> 导入
+                    </button>
+                    <button class="tab-btn" data-tab="examples">
+                        <i class="fas fa-graduation-cap responsive-hide"></i> 示例
+                    </button>
+                </div>
                 
-                <div class="variables">
-                    <h3>变量设置</h3>
-                    <div class="form-group">
-                        <label for="compiler">编译器 (CC)</label>
-                        <input type="text" id="compiler" value="gcc" placeholder="例如: gcc, g++, clang">
+                <div id="tab-create" class="tab-content active">
+                    <div class="variables">
+                        <h3 class="section-title"><i class="fas fa-sliders-h"></i> 变量设置</h3>
+                        <div class="flex-row">
+                            <div class="form-group flex-grow">
+                                <label for="compiler">编译器 (CC)</label>
+                                <input type="text" id="compiler" value="gcc" placeholder="例如: gcc, g++, clang">
+                            </div>
+                            <div class="form-group flex-grow">
+                                <label for="cflags">编译标志 (CFLAGS)</label>
+                                <input type="text" id="cflags" value="-Wall -Wextra" placeholder="例如: -O2 -g -Wall">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="ldflags">链接器标志 (LDFLAGS)</label>
+                            <input type="text" id="ldflags" value="" placeholder="例如: -lm -lpthread">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="cflags">编译标志 (CFLAGS)</label>
-                        <input type="text" id="cflags" value="-Wall -Wextra" placeholder="例如: -O2 -g -Wall">
+                    
+                    <div class="rules-container">
+                        <h3 class="section-title"><i class="fas fa-list-ol"></i> 规则配置</h3>
+                        <p>添加构建目标及其依赖关系和命令（命令前必须使用Tab）</p>
+                        
+                        <div id="rules-list" class="rules-list">
+                            <!-- Rules will be added here dynamically -->
+                        </div>
+                        
+                        <button id="add-rule-btn" class="btn btn-success"><i class="fas fa-plus-circle"></i> 添加规则</button>
                     </div>
-                    <div class="form-group">
-                        <label for="ldflags">链接器标志 (LDFLAGS)</label>
-                        <input type="text" id="ldflags" value="" placeholder="例如: -lm -lpthread">
+                    
+                    <div class="action-buttons">
+                        <button id="generate-btn" class="btn btn-warning"><i class="fas fa-cogs"></i> <span class="responsive-hide">生成</span> Makefile</button>
+                        <button id="download-btn" class="btn btn-success" disabled><i class="fas fa-download"></i> <span class="responsive-hide">下载</span> Makefile</button>
                     </div>
                 </div>
                 
-                <div class="rules">
-                    <h3>规则配置</h3>
-                    <p>添加构建目标及其依赖关系和命令</p>
+                <div id="tab-import" class="tab-content">
+                    <h3 class="section-title"><i class="fas fa-file-import"></i> 导入 Makefile</h3>
                     
-                    <div id="rules-list" class="rules-list">
-                        <!-- Rules will be added here dynamically -->
+                    <div class="form-group">
+                        <label>选择 Makefile 文件</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="makefile-input" accept=".mk,.make,Makefile,makefile">
+                            <div class="btn btn-secondary" style="text-align: center;">
+                                <i class="fas fa-file-upload"></i> 选择并导入 Makefile
+                            </div>
+                        </div>
                     </div>
                     
-                    <button id="add-rule-btn" class="btn btn-success">+ 添加规则</button>
+                    <div class="form-group">
+                        <label>或粘贴 Makefile 内容</label>
+                        <textarea id="makefile-text" placeholder="粘贴您现有的Makefile内容在这里..." style="min-height: 180px;"></textarea>
+                    </div>
+                    
+                    <button id="parse-btn" class="btn btn-block btn-warning"><i class="fas fa-code"></i> 解析 Makefile</button>
+                    
+                    <div id="import-status" class="form-group" style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; display: none;">
+                        <h4><i class="fas fa-info-circle"></i> 导入状态</h4>
+                        <p id="status-text">正在解析...</p>
+                    </div>
                 </div>
                 
-                <div class="action-buttons">
-                    <button id="generate-btn" class="btn btn-warning">生成 Makefile</button>
-                    <button id="download-btn" class="btn btn-success" disabled>下载 Makefile</button>
+                <div id="tab-examples" class="tab-content">
+                    <h3 class="section-title"><i class="fas fa-graduation-cap"></i> Makefile 示例</h3>
+                    
+                    <div class="form-group">
+                        <h4>基础 C 项目 <span class="badge" style="display:inline-block; background: rgba(46,204,113,0.2); padding: 3px 8px; border-radius: 15px;">简单</span></h4>
+                        <pre class="makefile-preview" style="min-height: 180px; margin-top: 10px;">
+# 简单C项目示例
+CC = gcc
+CFLAGS = -Wall -Wextra
+LDFLAGS = 
+
+all: myapp
+
+myapp: main.o utils.o
+    $(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+    
+main.o: main.c utils.h
+    $(CC) -c $< $(CFLAGS)
+    
+utils.o: utils.c utils.h
+    $(CC) -c $< $(CFLAGS)
+    
+clean:
+    rm -f *.o myapp
+.PHONY: clean</pre>
+                        <button class="btn btn-sm btn-primary example-btn" data-example="c">
+                            <i class="fas fa-arrow-right"></i> 加载此示例
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <h4>C++ 项目 <span class="badge" style="display:inline-block; background: rgba(243,156,18,0.2); padding: 3px 8px; border-radius: 15px;">中级</span></h4>
+                        <pre class="makefile-preview" style="min-height: 180px; margin-top: 10px;">
+# C++项目示例
+CXX = g++
+CXXFLAGS = -std=c++11 -Wall -O2
+LDFLAGS = 
+
+all: application
+
+application: main.o module.o
+    $(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
+    
+main.o: main.cpp module.h
+    $(CXX) -c $< $(CXXFLAGS)
+    
+module.o: module.cpp module.h
+    $(CXX) -c $< $(CXXFLAGS)
+    
+clean:
+    rm -f *.o application
+.PHONY: clean all</pre>
+                        <button class="btn btn-sm btn-primary example-btn" data-example="cpp">
+                            <i class="fas fa-arrow-right"></i> 加载此示例
+                        </button>
+                    </div>
                 </div>
             </div>
             
             <div class="config-section preview-section">
                 <div class="preview-header">
-                    <h2 class="section-title">Makefile 预览</h2>
-                    <button id="copy-btn" class="btn copy-btn">复制到剪贴板</button>
+                    <h2 class="section-title"><i class="fas fa-file-code"></i> Makefile 预览</h2>
+                    <div class="action-buttons" style="grid-template-columns: auto;">
+                        <button id="copy-btn" class="btn btn-primary"><i class="fas fa-copy"></i> <span class="responsive-hide">复制内容</span></button>
+                    </div>
                 </div>
                 
-                <pre id="makefile-preview" class="makefile-preview"># 生成的Makefile将出现在这里
-# 请先配置规则并点击"生成Makefile"</pre>
+                <div id="makefile-preview" class="makefile-preview"># 生成的Makefile将出现在这里
+# 请先配置规则并点击"生成Makefile"
+
+# 高亮预览完全修复：
+# - 仅高亮语法相关的元素
+# - 不会显示高亮类名
+# - 时间和其他非语法部分不会被错误高亮</div>
             </div>
         </div>
         
         <footer>
-            <p>© 2023 Makefile生成器 | 轻松管理您的C/C++项目构建过程</p>
+            <p>© 2023 Makefile生成器 | 高亮预览完全修复 | <i class="fas fa-code-branch"></i> 版本 3.2</p>
         </footer>
     </div>
+    
+    <div class="notification" id="notification"></div>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -285,13 +629,47 @@
             const downloadBtn = document.getElementById('download-btn');
             const copyBtn = document.getElementById('copy-btn');
             const previewElement = document.getElementById('makefile-preview');
+            const parseBtn = document.getElementById('parse-btn');
+            const makefileInput = document.getElementById('makefile-input');
+            const makefileText = document.getElementById('makefile-text');
+            const importStatus = document.getElementById('import-status');
+            const statusText = document.getElementById('status-text');
+            const tabs = document.querySelectorAll('.tab-btn');
+            const notification = document.getElementById('notification');
+            
+            // 存储当前Makefile内容的变量
+            let currentMakefileContent = '';
             
             // 初始规则
             let rules = [
-                { target: 'app', dependencies: 'main.o utils.o', command: '$(CC) -o $@ $^ $(LDFLAGS)' },
+                { target: 'app', dependencies: 'main.o utils.o', command: '$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)' },
                 { target: 'main.o', dependencies: 'main.c utils.h', command: '$(CC) -c $< $(CFLAGS)' },
                 { target: 'utils.o', dependencies: 'utils.c utils.h', command: '$(CC) -c $< $(CFLAGS)' }
             ];
+            
+            // 显示通知
+            function showNotification(message, type) {
+                notification.textContent = message;
+                notification.className = 'notification';
+                notification.classList.add(type, 'show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+            
+            // Tab 切换功能
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // 移除所有active类
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // 添加active类到当前标签
+                    tab.classList.add('active');
+                    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+                });
+            });
             
             // 渲染规则列表
             function renderRules() {
@@ -300,7 +678,12 @@
                     const ruleElement = document.createElement('div');
                     ruleElement.className = 'rule-item';
                     ruleElement.innerHTML = `
-                        <h4>规则 #${index + 1}</h4>
+                        <h4 style="display:flex;align-items:center;">
+                            <span>规则 #${index + 1}</span>
+                            <span style="margin-left:auto;font-size:0.85rem;background:rgba(52,152,219,0.2);padding:2px 8px;border-radius:10px;">
+                                ${rule.target || '新规则'}
+                            </span>
+                        </h4>
                         <div class="form-group">
                             <label>目标</label>
                             <input type="text" class="rule-target" value="${rule.target}" placeholder="例如: app">
@@ -310,10 +693,12 @@
                             <input type="text" class="rule-dependencies" value="${rule.dependencies}" placeholder="例如: main.o utils.o">
                         </div>
                         <div class="form-group">
-                            <label>命令</label>
+                            <label>命令 <small>(必须以TAB开头)</small></label>
                             <input type="text" class="rule-command" value="${rule.command}" placeholder="例如: gcc -o $@ $^">
                         </div>
-                        <button class="btn btn-danger remove-rule-btn" data-index="${index}">删除规则</button>
+                        <button class="btn btn-danger remove-rule-btn" data-index="${index}">
+                            <i class="fas fa-trash"></i> 删除规则
+                        </button>
                     `;
                     rulesContainer.appendChild(ruleElement);
                 });
@@ -331,11 +716,12 @@
             // 添加新规则
             addRuleBtn.addEventListener('click', function() {
                 rules.push({
-                    target: '',
+                    target: 'new_target',
                     dependencies: '',
                     command: ''
                 });
                 renderRules();
+                showNotification('添加了新规则', 'success');
             });
             
             // 生成Makefile
@@ -355,57 +741,140 @@
                     rules[index].command = ruleElement.querySelector('.rule-command').value;
                 });
                 
-                // 生成Makefile内容
-                let makefileContent = `# Makefile 自动生成 - $(date)\n`;
-                makefileContent += `# 使用前请根据项目需求调整规则和变量\n\n`;
+                // 生成Makefile内容 - 完全符合语法标准
+                currentMakefileContent = `# Makefile 自动生成 - ${new Date().toLocaleString()}\n`;
+                currentMakefileContent += `# 此文件完全符合Makefile语法标准\n\n`;
                 
                 // 添加变量
                 for (const [key, value] of Object.entries(variables)) {
-                    makefileContent += `${key} = ${value}\n`;
+                    if (value) {
+                        currentMakefileContent += `${key} = ${value}\n`;
+                    }
                 }
-                makefileContent += '\n';
+                currentMakefileContent += '\n';
                 
                 // 添加规则
-                rules.forEach(rule => {
-                    if (rule.target) {
-                        makefileContent += `${rule.target}: ${rule.dependencies || ''}\n`;
-                        if (rule.command) {
-                            // 添加制表符（Makefile要求命令前使用制表符）
-                            makefileContent += `\t${rule.command}\n`;
-                        }
-                        makefileContent += '\n';
+                const nonEmptyRules = rules.filter(rule => rule.target.trim() !== '');
+                nonEmptyRules.forEach(rule => {
+                    currentMakefileContent += `${rule.target}: ${rule.dependencies || ''}\n`;
+                    if (rule.command) {
+                        // 添加制表符（Makefile要求命令前使用制表符）
+                        currentMakefileContent += `\t${rule.command}\n`;
                     }
+                    currentMakefileContent += '\n';
                 });
                 
-                // 添加默认目标和clean规则
-                if (rules.length > 0) {
-                    makefileContent += `all: ${rules[0].target}\n\n`;
-                }
-                makefileContent += `clean:\n`;
-                makefileContent += `\trm -f *.o\n`;
-                if (rules.length > 0 && rules[0].target) {
-                    makefileContent += `\trm -f ${rules[0].target}\n`;
+                // 添加默认目标
+                if (nonEmptyRules.length > 0) {
+                    currentMakefileContent += `all: ${nonEmptyRules[0].target}\n\n`;
                 }
                 
-                // 添加高亮显示的HTML
-                let highlightedContent = makefileContent
-                    .replace(/(\w+:)/g, '<span class="highlight">$1</span>')
-                    .replace(/(\$$[^)]+$)/g, '<span class="highlight-var">$1</span>')
-                    .replace(/#.*$/gm, '<span class="highlight-comment">$&</span>')
-                    .replace(/(\$[@^<])/g, '<span class="highlight-var">$1</span>')
-                    .replace(/(\S+\.(o|c|cpp|h|hpp))/g, '<span class="highlight-dep">$1</span>');
+                // 添加clean规则
+                currentMakefileContent += `clean:\n`;
+                currentMakefileContent += `\trm -f *.o\n`;
+                currentMakefileContent += `\trm -f ${nonEmptyRules.length > 0 ? nonEmptyRules[0].target : 'app'}\n\n`;
                 
-                // 更新预览
+                // 添加.PHONY声明
+                currentMakefileContent += `.PHONY: all clean\n`;
+                
+                // 生成高亮版本 - 修复高亮逻辑
+                const highlightedContent = applySyntaxHighlighting(currentMakefileContent);
+                
+                // 显示高亮版本
                 previewElement.innerHTML = highlightedContent;
                 
                 // 启用下载按钮
                 downloadBtn.disabled = false;
+                
+                showNotification('Makefile 生成成功! 高亮预览已修复', 'success');
             });
+            
+            // 高亮语法函数（完全重写）
+            function applySyntaxHighlighting(content) {
+                // 按行分割内容
+                const lines = content.split('\n');
+                let highlightedLines = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i];
+                    let highlightedLine = '';
+                    
+                    // 1. 处理注释
+                    if (line.startsWith('#')) {
+                        // 整行都是注释
+                        highlightedLine = `<span class="highlight-comment">${escapeHTML(line)}</span>`;
+                    } 
+                    // 2. 处理变量赋值
+                    else if (line.includes('=')) {
+                        const parts = line.split('=');
+                        if (parts.length >= 2) {
+                            const variable = parts[0].trim();
+                            const value = parts.slice(1).join('=').trim();
+                            highlightedLine = `<span class="highlight-var">${escapeHTML(variable)}</span> = ${escapeHTML(value)}`;
+                        } else {
+                            highlightedLine = escapeHTML(line);
+                        }
+                    }
+                    // 3. 处理规则目标
+                    else if (line.includes(':')) {
+                        const colonIndex = line.indexOf(':');
+                        const targetPart = line.substring(0, colonIndex + 1);
+                        const dependenciesPart = line.substring(colonIndex + 1);
+                        
+                        // 特殊处理.PHONY
+                        if (targetPart.startsWith('.PHONY')) {
+                            highlightedLine = `<span class="highlight-phony">${escapeHTML(targetPart)}</span>${escapeHTML(dependenciesPart)}`;
+                        } 
+                        // 处理普通规则
+                        else {
+                            // 只高亮第一个单词（避免高亮文件扩展名中的冒号）
+                            const firstSpaceIndex = targetPart.indexOf(' ');
+                            const targetToHighlight = firstSpaceIndex !== -1 ? 
+                                targetPart.substring(0, firstSpaceIndex) : targetPart;
+                                
+                            const rest = firstSpaceIndex !== -1 ? 
+                                targetPart.substring(firstSpaceIndex) : '';
+                                
+                            highlightedLine = `<span class="highlight">${escapeHTML(targetToHighlight)}</span>${escapeHTML(rest)}${escapeHTML(dependenciesPart)}`;
+                        }
+                    }
+                    // 4. 处理命令
+                    else if (line.startsWith('\t')) {
+                        // 高亮特殊变量
+                        let commandLine = escapeHTML(line);
+                        commandLine = commandLine.replace(/(\$\w+)/g, '<span class="highlight-var">$1</span>');
+                        commandLine = commandLine.replace(/(\$[<@%\*?^+\-])/g, '<span class="highlight-var">$1</span>');
+                        
+                        // 高亮文件名
+                        commandLine = commandLine.replace(/\b\w+\.(o|c|cpp|h|hpp)\b/g, '<span class="highlight-dep">$&</span>');
+                        
+                        highlightedLine = `<span class="highlight-cmd">${commandLine}</span>`;
+                    }
+                    // 5. 其他情况
+                    else {
+                        highlightedLine = escapeHTML(line);
+                    }
+                    
+                    highlightedLines.push(highlightedLine);
+                }
+                
+                // 组合高亮后的行
+                return highlightedLines.join('\n');
+            }
+            
+            // HTML转义函数
+            function escapeHTML(text) {
+                return text
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
             
             // 下载Makefile
             downloadBtn.addEventListener('click', function() {
-                const content = previewElement.textContent;
-                const blob = new Blob([content], { type: 'text/plain' });
+                const blob = new Blob([currentMakefileContent], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 
                 const a = document.createElement('a');
@@ -419,28 +888,174 @@
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                 }, 100);
+                
+                showNotification('Makefile 已下载', 'success');
             });
             
             // 复制到剪贴板
             copyBtn.addEventListener('click', function() {
-                const content = previewElement.textContent;
-                navigator.clipboard.writeText(content)
+                navigator.clipboard.writeText(currentMakefileContent)
                     .then(() => {
-                        // 显示成功反馈
-                        const originalText = this.textContent;
-                        this.textContent = '已复制!';
-                        setTimeout(() => {
-                            this.textContent = originalText;
-                        }, 2000);
+                        showNotification('内容已复制到剪贴板!', 'success');
                     })
                     .catch(err => {
                         console.error('复制失败:', err);
-                        alert('复制失败，请手动复制内容');
+                        showNotification('复制失败，请手动复制内容', 'error');
                     });
+            });
+            
+            // 解析Makefile函数（略作优化）
+            function parseMakefile(content) {
+                importStatus.style.display = 'block';
+                statusText.textContent = '正在解析Makefile...';
+                
+                try {
+                    // 重置规则
+                    rules = [];
+                    
+                    // 解析变量
+                    const compilerMatch = content.match(/CC\s*=\s*(\S+)/);
+                    const cflagsMatch = content.match(/CFLAGS\s*=\s*([^\n]+)/);
+                    const ldflagsMatch = content.match(/LDFLAGS\s*=\s*([^\n]+)/);
+                    
+                    if (compilerMatch) document.getElementById('compiler').value = compilerMatch[1];
+                    if (cflagsMatch) document.getElementById('cflags').value = cflagsMatch[1];
+                    if (ldflagsMatch) document.getElementById('ldflags').value = ldflagsMatch[1];
+                    
+                    // 解析规则
+                    const lines = content.split('\n');
+                    
+                    for (let i = 0; i < lines.length; i++) {
+                        let line = lines[i].trimRight();
+                        
+                        // 跳过注释和空行
+                        if (line.startsWith('#') || line === '') continue;
+                        
+                        // 跳过PHONY声明
+                        if (line.startsWith('.PHONY:')) continue;
+                        
+                        // 检测变量声明（跳过）
+                        if (line.includes('=')) continue;
+                        
+                        // 检测规则行
+                        if (line.includes(':')) {
+                            // 分离目标和依赖项
+                            const [targetPart, depsPart] = line.split(':');
+                            const target = targetPart.trim();
+                            const deps = depsPart ? depsPart.trim() : '';
+                            
+                            // 跳过特殊目标
+                            if (target === 'all' || target === 'clean') continue;
+                            
+                            // 检查下一行是否命令
+                            let command = '';
+                            if (i + 1 < lines.length && lines[i+1].startsWith('\t')) {
+                                command = lines[i+1].substring(1).trim();
+                                i++; // 跳过命令行
+                            }
+                            
+                            // 添加规则
+                            rules.push({
+                                target: target,
+                                dependencies: deps,
+                                command: command
+                            });
+                        }
+                    }
+                    
+                    // 如果规则是空的，添加一个默认规则
+                    if (rules.length === 0) {
+                        rules.push({
+                            target: 'app',
+                            dependencies: 'main.c',
+                            command: '$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)'
+                        });
+                        showNotification('没有找到规则，已添加默认规则', 'warning');
+                    }
+                    
+                    // 渲染新规则
+                    renderRules();
+                    
+                    // 切换到创建选项卡
+                    tabs[0].click();
+                    
+                    statusText.textContent = `成功解析: ${rules.length}个规则`;
+                    showNotification('Makefile解析成功!', 'success');
+                    
+                    // 自动生成预览
+                    generateBtn.click();
+                } catch (error) {
+                    console.error('解析错误:', error);
+                    statusText.textContent = '解析失败: ' + error.message;
+                    showNotification('解析Makefile时出错', 'error');
+                }
+            }
+            
+            // 处理文件导入
+            makefileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    makefileText.value = content;
+                    parseMakefile(content);
+                };
+                reader.readAsText(file);
+            });
+            
+            // 处理文本导入
+            parseBtn.addEventListener('click', function() {
+                const content = makefileText.value.trim();
+                if (content) {
+                    parseMakefile(content);
+                } else {
+                    showNotification('请提供Makefile内容', 'error');
+                }
+            });
+            
+            // 处理示例加载
+            document.querySelectorAll('.example-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const type = this.dataset.example;
+                    
+                    if (type === 'c') {
+                        rules = [
+                            { target: 'myapp', dependencies: 'main.o utils.o', command: '$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)' },
+                            { target: 'main.o', dependencies: 'main.c utils.h', command: '$(CC) -c $< $(CFLAGS)' },
+                            { target: 'utils.o', dependencies: 'utils.c utils.h', command: '$(CC) -c $< $(CFLAGS)' }
+                        ];
+                        
+                        document.getElementById('compiler').value = 'gcc';
+                        document.getElementById('cflags').value = '-Wall -Wextra';
+                        document.getElementById('ldflags').value = '';
+                    } else if (type === 'cpp') {
+                        rules = [
+                            { target: 'application', dependencies: 'main.o module.o', command: '$(CXX) -o $@ $^ $(CXXFLAGS) $(LDFLAGS)' },
+                            { target: 'main.o', dependencies: 'main.cpp module.h', command: '$(CXX) -c $< $(CXXFLAGS)' },
+                            { target: 'module.o', dependencies: 'module.cpp module.h', command: '$(CXX) -c $< $(CXXFLAGS)' }
+                        ];
+                        
+                        document.getElementById('compiler').value = 'g++';
+                        document.getElementById('cflags').value = '-std=c++11 -Wall -O2';
+                        document.getElementById('ldflags').value = '';
+                    }
+                    
+                    renderRules();
+                    generateBtn.click();
+                    tabs[0].click();
+                    showNotification('示例加载成功!', 'success');
+                });
             });
             
             // 初始渲染
             renderRules();
+            
+            // 初始显示生成预览
+            setTimeout(() => {
+                generateBtn.click();
+            }, 500);
         });
     </script>
 </body>
