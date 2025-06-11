@@ -1,22 +1,447 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <link rel="stylesheet" href="styles.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus App</title>
-        <script type="module" src="/main.js" defer></script>
-    </head>
-
-    <body>
-        <main class="container">
-            <h1>Welcome to PakePlus</h1>
-
-            <form class="row" id="greet-form">
-                <input id="greet-input" placeholder="Enter a name..." />
-                <button type="submit">Greet</button>
-            </form>
-            <p id="greet-msg"></p>
-        </main>
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Makefile生成器</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #34495e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .app-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        @media (max-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .config-section {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+        
+        .section-title {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--dark-color);
+        }
+        
+        .variables {
+            margin-bottom: 25px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        textarea {
+            min-height: 150px;
+            font-family: monospace;
+        }
+        
+        .rules-list {
+            margin-top: 20px;
+        }
+        
+        .rule-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+        
+        .btn-block {
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .action-buttons {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .preview-section {
+            position: relative;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .copy-btn {
+            background-color: var(--secondary-color);
+        }
+        
+        .makefile-preview {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 1rem;
+            min-height: 300px;
+        }
+        
+        .highlight {
+            color: #f92672; /* rule targets */
+        }
+        
+        .highlight-var {
+            color: #a6e22e; /* variables */
+        }
+        
+        .highlight-comment {
+            color: #75715e; /* comments */
+        }
+        
+        .highlight-dep {
+            color: #ae81ff; /* dependencies */
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #777;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Makefile 生成器</h1>
+            <p>轻松创建自定义Makefile，无需手动编写繁琐的语法</p>
+        </header>
+        
+        <div class="app-container">
+            <div class="config-section">
+                <h2 class="section-title">配置</h2>
+                
+                <div class="variables">
+                    <h3>变量设置</h3>
+                    <div class="form-group">
+                        <label for="compiler">编译器 (CC)</label>
+                        <input type="text" id="compiler" value="gcc" placeholder="例如: gcc, g++, clang">
+                    </div>
+                    <div class="form-group">
+                        <label for="cflags">编译标志 (CFLAGS)</label>
+                        <input type="text" id="cflags" value="-Wall -Wextra" placeholder="例如: -O2 -g -Wall">
+                    </div>
+                    <div class="form-group">
+                        <label for="ldflags">链接器标志 (LDFLAGS)</label>
+                        <input type="text" id="ldflags" value="" placeholder="例如: -lm -lpthread">
+                    </div>
+                </div>
+                
+                <div class="rules">
+                    <h3>规则配置</h3>
+                    <p>添加构建目标及其依赖关系和命令</p>
+                    
+                    <div id="rules-list" class="rules-list">
+                        <!-- Rules will be added here dynamically -->
+                    </div>
+                    
+                    <button id="add-rule-btn" class="btn btn-success">+ 添加规则</button>
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="generate-btn" class="btn btn-warning">生成 Makefile</button>
+                    <button id="download-btn" class="btn btn-success" disabled>下载 Makefile</button>
+                </div>
+            </div>
+            
+            <div class="config-section preview-section">
+                <div class="preview-header">
+                    <h2 class="section-title">Makefile 预览</h2>
+                    <button id="copy-btn" class="btn copy-btn">复制到剪贴板</button>
+                </div>
+                
+                <pre id="makefile-preview" class="makefile-preview"># 生成的Makefile将出现在这里
+# 请先配置规则并点击"生成Makefile"</pre>
+            </div>
+        </div>
+        
+        <footer>
+            <p>© 2023 Makefile生成器 | 轻松管理您的C/C++项目构建过程</p>
+        </footer>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始规则配置
+            const rulesContainer = document.getElementById('rules-list');
+            const addRuleBtn = document.getElementById('add-rule-btn');
+            const generateBtn = document.getElementById('generate-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const copyBtn = document.getElementById('copy-btn');
+            const previewElement = document.getElementById('makefile-preview');
+            
+            // 初始规则
+            let rules = [
+                { target: 'app', dependencies: 'main.o utils.o', command: '$(CC) -o $@ $^ $(LDFLAGS)' },
+                { target: 'main.o', dependencies: 'main.c utils.h', command: '$(CC) -c $< $(CFLAGS)' },
+                { target: 'utils.o', dependencies: 'utils.c utils.h', command: '$(CC) -c $< $(CFLAGS)' }
+            ];
+            
+            // 渲染规则列表
+            function renderRules() {
+                rulesContainer.innerHTML = '';
+                rules.forEach((rule, index) => {
+                    const ruleElement = document.createElement('div');
+                    ruleElement.className = 'rule-item';
+                    ruleElement.innerHTML = `
+                        <h4>规则 #${index + 1}</h4>
+                        <div class="form-group">
+                            <label>目标</label>
+                            <input type="text" class="rule-target" value="${rule.target}" placeholder="例如: app">
+                        </div>
+                        <div class="form-group">
+                            <label>依赖项</label>
+                            <input type="text" class="rule-dependencies" value="${rule.dependencies}" placeholder="例如: main.o utils.o">
+                        </div>
+                        <div class="form-group">
+                            <label>命令</label>
+                            <input type="text" class="rule-command" value="${rule.command}" placeholder="例如: gcc -o $@ $^">
+                        </div>
+                        <button class="btn btn-danger remove-rule-btn" data-index="${index}">删除规则</button>
+                    `;
+                    rulesContainer.appendChild(ruleElement);
+                });
+                
+                // 添加删除规则事件
+                document.querySelectorAll('.remove-rule-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        rules.splice(index, 1);
+                        renderRules();
+                    });
+                });
+            }
+            
+            // 添加新规则
+            addRuleBtn.addEventListener('click', function() {
+                rules.push({
+                    target: '',
+                    dependencies: '',
+                    command: ''
+                });
+                renderRules();
+            });
+            
+            // 生成Makefile
+            generateBtn.addEventListener('click', function() {
+                // 收集变量
+                const variables = {
+                    CC: document.getElementById('compiler').value || 'gcc',
+                    CFLAGS: document.getElementById('cflags').value || '',
+                    LDFLAGS: document.getElementById('ldflags').value || ''
+                };
+                
+                // 更新规则数据
+                rules.forEach((_, index) => {
+                    const ruleElement = rulesContainer.children[index];
+                    rules[index].target = ruleElement.querySelector('.rule-target').value;
+                    rules[index].dependencies = ruleElement.querySelector('.rule-dependencies').value;
+                    rules[index].command = ruleElement.querySelector('.rule-command').value;
+                });
+                
+                // 生成Makefile内容
+                let makefileContent = `# Makefile 自动生成 - $(date)\n`;
+                makefileContent += `# 使用前请根据项目需求调整规则和变量\n\n`;
+                
+                // 添加变量
+                for (const [key, value] of Object.entries(variables)) {
+                    makefileContent += `${key} = ${value}\n`;
+                }
+                makefileContent += '\n';
+                
+                // 添加规则
+                rules.forEach(rule => {
+                    if (rule.target) {
+                        makefileContent += `${rule.target}: ${rule.dependencies || ''}\n`;
+                        if (rule.command) {
+                            // 添加制表符（Makefile要求命令前使用制表符）
+                            makefileContent += `\t${rule.command}\n`;
+                        }
+                        makefileContent += '\n';
+                    }
+                });
+                
+                // 添加默认目标和clean规则
+                if (rules.length > 0) {
+                    makefileContent += `all: ${rules[0].target}\n\n`;
+                }
+                makefileContent += `clean:\n`;
+                makefileContent += `\trm -f *.o\n`;
+                if (rules.length > 0 && rules[0].target) {
+                    makefileContent += `\trm -f ${rules[0].target}\n`;
+                }
+                
+                // 添加高亮显示的HTML
+                let highlightedContent = makefileContent
+                    .replace(/(\w+:)/g, '<span class="highlight">$1</span>')
+                    .replace(/(\$$[^)]+$)/g, '<span class="highlight-var">$1</span>')
+                    .replace(/#.*$/gm, '<span class="highlight-comment">$&</span>')
+                    .replace(/(\$[@^<])/g, '<span class="highlight-var">$1</span>')
+                    .replace(/(\S+\.(o|c|cpp|h|hpp))/g, '<span class="highlight-dep">$1</span>');
+                
+                // 更新预览
+                previewElement.innerHTML = highlightedContent;
+                
+                // 启用下载按钮
+                downloadBtn.disabled = false;
+            });
+            
+            // 下载Makefile
+            downloadBtn.addEventListener('click', function() {
+                const content = previewElement.textContent;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Makefile';
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+            
+            // 复制到剪贴板
+            copyBtn.addEventListener('click', function() {
+                const content = previewElement.textContent;
+                navigator.clipboard.writeText(content)
+                    .then(() => {
+                        // 显示成功反馈
+                        const originalText = this.textContent;
+                        this.textContent = '已复制!';
+                        setTimeout(() => {
+                            this.textContent = originalText;
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        console.error('复制失败:', err);
+                        alert('复制失败，请手动复制内容');
+                    });
+            });
+            
+            // 初始渲染
+            renderRules();
+        });
+    </script>
+</body>
 </html>
