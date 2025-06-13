@@ -1,22 +1,1287 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <link rel="stylesheet" href="styles.css" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus App</title>
-        <script type="module" src="/main.js" defer></script>
-    </head>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>绿电猫 Markdown任务管理器</title>
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --primary-hover: #3a56d4;
+            --secondary-color: #7209b7;
+            --light-bg: #f8f9fa;
+            --dark-bg: #212529;
+            --success-color: #06d6a0;
+            --danger-color: #ef476f;
+            --warning-color: #ffd166;
+            --text-dark: #212529;
+            --text-light: #f8f9fa;
+            --border-radius: 8px;
+            --transition: all 0.3s ease;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
 
-    <body>
-        <main class="container">
-            <h1>Welcome to PakePlus</h1>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-            <form class="row" id="greet-form">
-                <input id="greet-input" placeholder="Enter a name..." />
-                <button type="submit">Greet</button>
-            </form>
-            <p id="greet-msg"></p>
-        </main>
-    </body>
+        body {
+            background-color: #f0f2f5;
+            color: var(--text-dark);
+            line-height: 1.6;
+            padding-bottom: 30px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.2rem;
+        }
+
+        .subtitle {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+
+        .counters {
+            display: flex;
+            justify-content: space-between;
+            background-color: white;
+            padding: 15极客px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+
+        .counter-item {
+            text-align: center;
+            flex: 1;
+            padding: 10px;
+        }
+
+        .counter-item h3 {
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            color: #6c757d;
+        }
+
+        .counter-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            transition: all 0.3s ease;
+        }
+
+        .counter-value.completed {
+            color: var(--success-color);
+        }
+
+        .task-form {
+            background-color: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 0;
+            position: relative;
+        }
+
+        @media (max-width: 900px) {
+            .form-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .form-group:nth-child(3) {
+                grid-column: 1 / span 2;
+            }
+            .form-group:last-child {
+                grid-column: 2 / span 1;
+                margin-top: 5px;
+            }
+        }
+
+        @media (max-width: 650px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-group:nth-child(3), .form-group:last-child {
+                grid-column: 1 / span 1;
+            }
+            .form-group:last-child {
+                margin-top: 0;
+            }
+            .form-group:last-child button {
+                width: 100%;
+            }
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        input[type="text"]:focus,
+        input[type="date"]:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.25);
+        }
+
+        input::placeholder {
+            color: #adb5bd;
+        }
+
+        /* 修复后的下拉菜单结构 */
+        .assignee-container {
+            position: relative;
+        }
+
+        .assignee-toggle {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border: 1px solid #ced4da;
+            border-radius: var(--border-radius);
+            background-color: white;
+            position: relative;
+        }
+
+        .assignee-toggle input {
+            border: none;
+            padding: 0;
+            flex: 1;
+            font-size: 1rem;
+            outline: none;
+            background: transparent;
+        }
+
+        .assignee-toggle .arrow {
+            padding: 0 5px;
+            transition: transform 0.3s ease;
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .assignee-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-top: 5px;
+            border: 1px solid #ced4da;
+            border-radius: var(--border-radius);
+            background: white;
+            box-shadow: var(--shadow);
+            transform-origin: top;
+            transform: scaleY(0);
+            opacity: 0;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            z-index: 1000;
+        }
+
+        .assignee-dropdown.open {
+            transform: scaleY(1);
+            opacity: 1;
+        }
+
+        .dropdown-list {
+            list-style-type: none;
+        }
+
+        .dropdown-header {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #6c757d;
+            background-color: #f8f9fa;
+            padding: 8px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .assignee-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            background-color: #fff;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .assignee-item:last-child {
+            border-bottom: none;
+        }
+
+        .assignee-item:hover {
+            background-color: #f8f9ff;
+        }
+
+        .assignee-icon {
+            background-color: var(--primary-color);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .assignee-name {
+            flex-grow: 1;
+        }
+
+        .assignee-count {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-left: 10px;
+        }
+
+        .assignee-input-container {
+            position: relative;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .assignee-input-container input {
+            width: 100%;
+            border: none;
+            padding: 8px 15px;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .no-assignees {
+            padding: 15px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            cursor: default;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .primary-btn {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .primary-btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .secondary-btn {
+            background-color: #6c757d;
+            color: white;
+            margin-right: 10px;
+        }
+
+        .secondary-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .danger-btn {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .danger-btn:hover {
+            background-color: #e03566;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .task-list {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .task-group {
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .task-group:last-child {
+            border-bottom: none;
+        }
+
+        .group-header {
+            background-color: #e9ecef;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--primary-color);
+        }
+
+        .group-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .task {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            transition: var(--transition);
+        }
+
+        .task:last-child {
+            border-bottom: none;
+        }
+
+        .task:hover {
+            background-color: #f8f9fa;
+        }
+
+        .task-content {
+            flex-grow: 1;
+            padding: 0 15px;
+        }
+
+        .task-title {
+            margin-bottom: 5px;
+        }
+
+        .task-meta {
+            display: flex;
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .task-assignee {
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .task-assignee .assignee-icon {
+            background-color: var(--primary-color);
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 6px;
+            flex-shrink: 0;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .task-due {
+            display: flex;
+            align-items: center;
+        }
+
+        .task-due:before {
+            content: "📅";
+            margin-right: 5px;
+        }
+
+        .task-checkbox {
+            transform: scale(1.3);
+            cursor: pointer;
+        }
+
+        .task-actions {
+            opacity: 0.7;
+            transition: var(--transition);
+        }
+
+        .task:hover .task-actions {
+            opacity: 1;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 1.3rem;
+            padding: 5px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .delete-btn:hover {
+            background-color: #f8d7da;
+            color: var(--danger-color);
+        }
+
+        .task.completed .task-title {
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background-color: white;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            max-width: 350px;
+            opacity: 0;
+            transform: translateX(100%);
+            animation: slideIn 0.3s forwards, fadeOut 0.3s forwards 2.7s;
+        }
+
+        .toast.success {
+            border-left-color: var(--success极客-color);
+        }
+
+        .toast.error {
+            border-left-color: var(--danger-color);
+        }
+
+        .toast.warning {
+            border-left-color: var(--warning-color);
+        }
+
+        .toast-icon {
+            font-size: 1.5rem;
+            margin-right: 15px;
+        }
+
+        .toast-content {
+            flex-grow: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .toast-message {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateX(30px);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state img {
+            max-width: 200px;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+
+        /* 操作提示 */
+        .operation-tip {
+            background-color: #e9f7ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .operation-tip h3 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .operation-tip ul {
+            padding-left: 20px;
+        }
+
+        .operation-tip li {
+            margin-bottom: 8px;
+        }
+        
+        /* 脉冲动画 */
+        .pulse {
+            animation: pulse 0.5s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Markdown任务管理器</h1>
+            <p class="subtitle">高效规划任务，支持Markdown导入导出</p>
+            <p class="subtitle">——绿电猫出品——</p>
+        </header>
+        
+        <div class="counters">
+            <div class="counter-item">
+                <h3>总任务</h3>
+                <div id="total-tasks" class="counter-value">0</div>
+            </div>
+            <div class="counter-item">
+                <h3>已完成</h3>
+                <div id="completed-tasks" class="counter-value completed">0</div>
+            </div>
+        </div>
+        
+        <div class="task-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="task-description">任务描述 *</label>
+                    <input type="text" id="task-description" placeholder="输入任务内容...">
+                </div>
+                
+                <div class="form-group">
+                    <label for="task-assignee">指派人 *</label>
+                    <!-- 重新设计的下拉菜单结构 - 修复布局问题 -->
+                    <div class="assignee-container">
+                        <div class="assignee-toggle">
+                            <input type="text" id="task-assignee" placeholder="请选择或输入指派人" autocomplete="off">
+                            <div class="arrow">▼</div>
+                        </div>
+                        <div class="assignee-dropdown" id="assignee-dropdown">
+                            <div class="dropdown-header">任务指派人（根据当前任务列表）</div>
+                            <ul class="dropdown-list" id="assignee-list">
+                                <li class="no-assignees">暂无指派人，请添加任务</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="task-due">截止日期 *</label>
+                    <input type="date" id="task-due">
+                </div>
+                
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="primary-btn" id="add-task-btn">
+                        <span class="icon">+</span> 添加任务
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="btn-group">
+                <button class="secondary-btn" id="export-btn">导出Markdown</button>
+                <button class="secondary-btn" id="import-btn">导入Markdown</button>
+            </div>
+            <button class="danger-btn" id="clear-btn">清空所有任务</button>
+        </div>
+        
+        <div class="task-list">
+            <div id="tasks-container">
+                <div class="empty-state">
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/s极客vg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <h3>当前没有任务</h3>
+                    <p>请添加新任务开始管理您的工作</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="operation-tip">
+            <h3>使用说明</h3>
+            <ul>
+                <li><strong>指派人输入：</strong>点击输入框选择指派人，也可直接输入新名称</li>
+                <li><strong>实时更新：</strong>下拉菜单根据当前任务列表自动更新</li>
+                <li><strong>任务状态：</strong>点击复选框可标记任务完成/未完成</li>
+                <li><strong>导入导出：</strong>支持Markdown格式的任务导入导出</li>
+            </ul>
+        </div>
+    </div>
+    
+    <!-- 隐藏的文件上传 -->
+    <input type="file" id="file-input" accept=".md" style="display:none">
+    
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <script>
+        // 任务数据结构
+        class Task {
+            constructor(description, assignee, dueDate, completed = false) {
+                this.id = Date.now() + Math.floor(Math.random() * 1000);
+                this.description = description;
+                this.assignee = assignee;
+                this.dueDate = dueDate;
+                this.completed = completed;
+            }
+        }
+
+        // 任务管理器状态
+        const state = {
+            tasks: [],
+        };
+
+        // DOM 元素
+        const elements = {
+            taskDescription: document.getElementById('task-description'),
+            taskAssignee: document.getElementById('task-assignee'),
+            taskDue: document.getElementById('task-due'),
+            addTaskBtn: document.getElementById('add-task-btn'),
+            tasksContainer: document.getElementById('tasks-container'),
+            totalTasks: document.getElementById('total-tasks'),
+            completedTasks: document.getElementById('completed-tasks'),
+            exportBtn: document.getElementById('export-btn'),
+            importBtn: document.getElementById('import-btn'),
+            clearBtn: document.getElementById('clear-btn'),
+            fileInput: document.getElementById('file-input'),
+            toastContainer: document.getElementById('toast-container'),
+            assigneeList: document.getElementById('assignee-list'),
+            assigneeDropdown: document.getElementById('assignee-dropdown')
+        };
+
+        // 工具函数
+        const utils = {
+            // 格式化日期为 YYYY-MM-DD
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+
+            // 显示 Toast 消息
+            showToast(message, type = 'info', duration = 3000) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const iconMap = {
+                    'success': '✅',
+                    'error': '❌',
+                    'warning': '⚠️',
+                    'info': 'ℹ️'
+                };
+                
+                const typeMap = {
+                    'success': '成功',
+                    'error': '错误',
+                    'warning': '警告',
+                    'info': '信息'
+                };
+
+                toast.innerHTML = `
+                    <div class="toast-icon">${iconMap[type] || 'ℹ️'}</div>
+                    <div class="toast-content">
+                        <div class="toast-title">${typeMap[type] || '信息'}</div>
+                        <div class="toast-message">${message}</div>
+                    </div>
+                `;
+
+                elements.toastContainer.appendChild(toast);
+                
+                // 触发动画
+                setTimeout(() => {
+                    toast.style.opacity = '1';
+                    toast.style.transform = 'translateX(0)';
+                }, 10);
+                
+                // 移除 Toast
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(30px)';
+                    setTimeout(() => {
+                        elements.toastContainer.removeChild(toast);
+                    }, 300);
+                }, duration);
+            },
+            
+            // 计算当前任务列表中的指派人及其频率
+            getAssigneesWithFrequency() {
+                const assigneeMap = new Map();
+                
+                // 遍历所有任务，计算指派人频率
+                state.tasks.forEach(task => {
+                    const assignee = task.assignee;
+                    if (assignee) {
+                        if (!assigneeMap.has(assignee)) {
+                            assigneeMap.set(assignee, 0);
+                        }
+                        assigneeMap.set(assignee, assigneeMap.get(assignee) + 1);
+                    }
+                });
+                
+                return Array.from(assigneeMap.entries())
+                    .map(([assignee, count]) => ({ assignee, count }))
+                    .sort((a, b) => b.count - a.count);
+            },
+            
+            // 更新指派人下拉菜单
+            updateAssigneeDropdown() {
+                // 获取当前指派人列表
+                const assignees = utils.getAssigneesWithFrequency();
+                
+                // 清除现有内容
+                elements.assigneeList.innerHTML = '';
+                
+                // 更新UI
+                if (assignees.length === 0) {
+                    const noItem = document.createElement('li');
+                    noItem.className = 'no-assignees';
+                    noItem.textContent = '暂无指派人';
+                    elements.assigneeList.appendChild(noItem);
+                    return;
+                }
+                
+                assignees.forEach(item => {
+                    const li = document.createElement('li');
+                    li.className = 'assignee-item';
+                    
+                    // 获取首字母作为图标
+                    const firstLetter = item.assignee.charAt(0).toUpperCase();
+                    
+                    // 创建选项
+                    li.innerHTML = `
+                        <div class="assignee-icon">${firstLetter}</div>
+                        <div class="assignee-name">${item.assignee}</div>
+                        <div class="assignee-count">${item.count}个任务</div>
+                    `;
+                    
+                    // 点击处理
+                    li.addEventListener('click', () => {
+                        elements.taskAssignee.value = item.assignee;
+                        utils.closeAssigneeDropdown();
+                    });
+                    
+                    elements.assigneeList.appendChild(li);
+                });
+            },
+            
+            // 打开指派人下拉菜单
+            openAssigneeDropdown() {
+                elements.assigneeDropdown.classList.add('open');
+            },
+            
+            // 关闭指派人下拉菜单
+            closeAssigneeDropdown() {
+                elements.assigneeDropdown.classList.remove('open');
+            },
+            
+            // 切换指派人下拉菜单
+            toggleAssigneeDropdown() {
+                if (elements.assigneeDropdown.classList.contains('open')) {
+                    utils.closeAssigneeDropdown();
+                } else {
+                    utils.updateAssigneeDropdown();
+                    utils.openAssigneeDropdown();
+                }
+            }
+        };
+
+        // 任务管理函数
+        const taskManager = {
+            // 添加新任务
+            addTask(description, assignee, dueDate) {
+                // 验证输入
+                if (!description.trim()) {
+                    utils.showToast('任务描述不能为空', 'error');
+                    return false;
+                }
+                
+                if (!assignee.trim()) {
+                    utils.showToast('指派人不能为空', 'error');
+                    return false;
+                }
+                
+                if (!dueDate) {
+                    utils.showToast('请选择截止日期', 'error');
+                    return false;
+                }
+                
+                // 格式化日期
+                const formattedDate = utils.formatDate(dueDate);
+                
+                // 创建新任务
+                const newTask = new Task(description, assignee, formattedDate);
+                state.tasks.push(newTask);
+                
+                // 更新UI
+                this.renderTasks();
+                this.updateCounters();
+                
+                utils.showToast('任务已添加', 'success');
+                return true;
+            },
+            
+            // 删除任务
+            deleteTask(taskId) {
+                const taskIndex = state.tasks.findIndex(task => task.id === taskId);
+                if (taskIndex !== -1) {
+                    state.tasks.splice(taskIndex, 1);
+                    this.renderTasks();
+                    this.updateCounters();
+                    utils.showToast('任务已删除', 'success');
+                }
+            },
+            
+            // 切换任务完成状态
+            toggleTaskCompletion(taskId) {
+                const task = state.tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.completed = !task.completed;
+                    this.updateCounters();
+                    // 更新任务视图
+                    const taskElement = document.querySelector(`[data-id="${taskId}"]`);
+                    if (taskElement) {
+                        taskElement.classList.toggle('completed', task.completed);
+                    }
+                }
+            },
+            
+            // 清空所有任务
+            clearTasks() {
+                if (confirm('确定要清空所有任务吗？此操作不可撤销。')) {
+                    state.tasks = [];
+                    this.renderTasks();
+                    this.updateCounters();
+                    utils.showToast('所有任务已清空', 'success');
+                }
+            },
+            
+            // 导出到 Markdown
+            exportToMarkdown() {
+                if (state.tasks.length === 0) {
+                    utils.showToast('没有任务可以导出', 'warning');
+                    return;
+                }
+                
+                // 按截止日期和指派人分组
+                const groupedTasks = {};
+                
+                // 按截止日期降序排序 (最新的在前)
+                const sortedTasks = [...state.tasks].sort((a, b) => {
+                    if (a.dueDate !== b.dueDate) {
+                        return b.dueDate.localeCompare(a.dueDate);
+                    }
+                    return a.assignee.localeCompare(b.assignee);
+                });
+                
+                // 分组任务
+                sortedTasks.forEach(task => {
+                    const key = `${task.dueDate}-${task.assignee}`;
+                    if (!groupedTasks[key]) {
+                        groupedTasks[key] = {
+                            dueDate: task.dueDate,
+                            assignee: task.assignee,
+                            tasks: []
+                        };
+                    }
+                    groupedTasks[key].tasks.push(task);
+                });
+                
+                // 生成 Markdown
+                let markdownContent = "# 任务列表\n\n";
+                
+                Object.values(groupedTasks).forEach(group => {
+                    markdownContent += `### [TODO] ${group.dueDate} @${group.assignee}\n\n`;
+                    
+                    group.tasks.forEach(task => {
+                        markdownContent += `- [${task.completed ? 'x' : ' '}] ${task.description}\n`;
+                    });
+                    
+                    markdownContent += "\n";
+                });
+                
+                // 创建下载链接
+                const blob = new Blob([markdownContent], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `tasks_${new Date().toISOString().slice(0, 10)}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                utils.showToast('已导出为Markdown文件', 'success');
+            },
+            
+            // 从 Markdown 导入
+            importFromMarkdown(file) {
+                // 导入前清空任务二次确认
+                if (state.tasks.length > 0) {
+                    if (!confirm('导入新文件将清空所有现有任务。确定要导入吗？')) {
+                        elements.fileInput.value = '';
+                        return;
+                    }
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const content = event.target.result;
+                    const lines = content.split(/\r?\n/);
+                    let currentGroup = null;
+                    const newTasks = [];
+                    let importedCount = 0;
+                    
+                    // 清空现有任务
+                    state.tasks = [];
+                    
+                    for (let line of lines) {
+                        // 识别任务组标题
+                        const groupMatch = line.match(/^#{2,3}\s*\[TODO]\s*(\d{4}-\d{1,2}-\d{1,2})\s*@(\S+)/i);
+                        if (groupMatch) {
+                            currentGroup = {
+                                dueDate: utils.formatDate(groupMatch[1]),
+                                assignee: groupMatch[2]
+                            };
+                            continue;
+                        }
+                        
+                        // 识别任务项
+                        const taskMatch = line.match(/^-\s*\[(x|\s)]\s*(.*)$/i);
+                        if (taskMatch && currentGroup) {
+                            const completed = taskMatch[1].toLowerCase() === 'x';
+                            const description = taskMatch[2].trim();
+                            
+                            if (description) {
+                                newTasks.push(new Task(
+                                    description,
+                                    currentGroup.assignee,
+                                    currentGroup.dueDate,
+                                    completed
+                                ));
+                                importedCount++;
+                            }
+                        }
+                    }
+                    
+                    if (newTasks.length > 0) {
+                        state.tasks = state.tasks.concat(newTasks);
+                        this.renderTasks();
+                        this.updateCounters();
+                        utils.showToast(`成功导入 ${importedCount} 个任务`, 'success');
+                    } else {
+                        utils.showToast('未识别到有效任务格式', 'error');
+                    }
+                };
+                
+                reader.onerror = () => {
+                    utils.showToast('导入失败：文件读取错误', 'error');
+                };
+                
+                reader.readAsText(file);
+            },
+            
+            // 更新任务计数器
+            updateCounters() {
+                const total = state.tasks.length;
+                const completed = state.tasks.filter(task => task.completed).length;
+                
+                elements.totalTasks.textContent = total;
+                elements.completedTasks.textContent = completed;
+                
+                // 添加计数动画效果
+                elements.totalTasks.classList.add('pulse');
+                elements.completedTasks.classList.add('pulse');
+                setTimeout(() => {
+                    elements.totalTasks.classList.remove('pulse');
+                    elements.completedTasks.classList.remove('pulse');
+                }, 500);
+            },
+            
+            // 渲染任务列表
+            renderTasks() {
+                // 更新指派人下拉菜单
+                utils.updateAssigneeDropdown();
+                
+                if (state.tasks.length === 0) {
+                    elements.tasksContainer.innerHTML = `
+                        <div class="empty-state">
+                            <div>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></极客line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <h3>当前没有任务</h3>
+                            <p>请添加新任务开始管理您的工作</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 按截止日期和指派人分组
+                const groupedTasks = {};
+                
+                // 按截止日期降序排序 (最新的在前)
+                const sortedTasks = [...state.tasks].sort((a, b) => {
+                    if (a.dueDate !== b.dueDate) {
+                        return b.dueDate.localeCompare(a.dueDate);
+                    }
+                    return a.assignee.localeCompare(b.assignee);
+                });
+                
+                // 分组任务
+                sortedTasks.forEach(task => {
+                    const key = `${task.dueDate}-${task.assignee}`;
+                    if (!groupedTasks[key]) {
+                        groupedTasks[key] = {
+                            dueDate: task.dueDate,
+                            assignee: task.assignee,
+                            tasks: []
+                        };
+                    }
+                    groupedTasks[key].tasks.push(task);
+                });
+                
+                // 构建HTML
+                let tasksHtml = '';
+                
+                Object.values(groupedTasks).forEach(group => {
+                    tasksHtml += `
+                        <div class="task-group">
+                            <div class="group-header">
+                                <span class="group-title">${group.dueDate} · @${group.assignee}</span>
+                            </div>
+                    `;
+                    
+                    group.tasks.forEach(task => {
+                        const firstLetter = task.assignee.charAt(0).toUpperCase();
+                        tasksHtml += `
+                            <div class="task ${task.completed ? 'completed' : ''}" data-id="${task.id}">
+                                <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+                                <div class="task-content">
+                                    <div class="task-title">${task.description}</div>
+                                    <div class="task-meta">
+                                        <div class="task-assignee">
+                                            <span class="assignee-icon">${firstLetter}</span>
+                                            @${task.assignee}
+                                        </div>
+                                        <div class="task-due">${task.dueDate}</div>
+                                    </div>
+                                </div>
+                                <div class="task-actions">
+                                    <button class="delete-btn" title="删除任务">🗑️</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    tasksHtml += `</div>`;
+                });
+                
+                elements.tasksContainer.innerHTML = tasksHtml;
+                
+                // 添加事件监听器
+                document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+                    const taskId = checkbox.closest('.task').dataset.id;
+                    checkbox.addEventListener('change', () => {
+                        this.toggleTaskCompletion(parseInt(taskId));
+                    });
+                });
+                
+                document.querySelectorAll('.delete-btn').forEach(button => {
+                    const taskId = button.closest('.task').dataset.id;
+                    button.addEventListener('click', () => {
+                        if (confirm('确定要删除此任务吗？')) {
+                            this.deleteTask(parseInt(taskId));
+                        }
+                    });
+                });
+            }
+        };
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            // 设置最小日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            elements.taskDue.value = today;
+            
+            // 事件监听器
+            elements.addTaskBtn.addEventListener('click', () => {
+                taskManager.addTask(
+                    elements.taskDescription.value,
+                    elements.taskAssignee.value,
+                    elements.taskDue.value
+                );
+                
+                // 重置表单
+                elements.taskDescription.value = '';
+                elements.taskAssignee.value = '';
+                elements.taskDue.value = today;
+                elements.taskDescription.focus();
+                
+                // 关闭下拉菜单
+                utils.closeAssigneeDropdown();
+            });
+            
+            // 导出按钮
+            elements.exportBtn.addEventListener('click', () => {
+                taskManager.exportToMarkdown();
+            });
+            
+            // 导入按钮
+            elements.importBtn.addEventListener('click', () => {
+                elements.fileInput.click();
+            });
+            
+            // 文件选择变化
+            elements.fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    taskManager.importFromMarkdown(e.target.files[0]);
+                    e.target.value = '';
+                }
+            });
+            
+            // 清空按钮
+            elements.clearBtn.addEventListener('click', () => {
+                taskManager.clearTasks();
+            });
+            
+            // 支持按Enter键添加任务
+            elements.taskDescription.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    taskManager.addTask(
+                        elements.taskDescription.value,
+                        elements.taskAssignee.value,
+                        elements.taskDue.value
+                    );
+                    elements.taskDescription.value = '';
+                    elements.taskAssignee.value = '';
+                    elements.taskDue.value = today;
+                    elements.taskDescription.focus();
+                }
+            });
+            
+            // 指派人输入框Enter键添加任务
+            elements.taskAssignee.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    taskManager.addTask(
+                        elements.taskDescription.value,
+                        elements.taskAssignee.value,
+                        elements.taskDue.value
+                    );
+                    elements.taskDescription.value = '';
+                    elements.taskAssignee.value = '';
+                    elements.taskDue.value = today;
+                    elements.taskDescription.focus();
+                }
+            });
+            
+            // 初始化下拉菜单事件
+            elements.taskAssignee.addEventListener('focus', () => {
+                utils.openAssigneeDropdown();
+            });
+            
+            // 点击切换下拉菜单
+            document.querySelector('.assignee-toggle .arrow').addEventListener('click', (e) => {
+                e.stopPropagation();
+                utils.toggleAssigneeDropdown();
+            });
+            
+            // 点击页面其他区域关闭下拉菜单
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.assignee-container')) {
+                    utils.closeAssigneeDropdown();
+                }
+            });
+            
+            // 初始化
+            taskManager.updateCounters();
+            taskManager.renderTasks();
+        });
+    </script>
+</body>
 </html>
