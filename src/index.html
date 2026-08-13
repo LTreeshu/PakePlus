@@ -492,9 +492,6 @@
     let logEntries = [];
     const MAX_LOG = 300;
     const $ = id => document.getElementById(id);
-    // 地址显示: 统一补零 8 位十六进制 (0x08000000); 偏移可为负, 显示为 -0x…
-    const fmtAddr = v => '0x' + v.toString(16).toUpperCase().padStart(8, '0');
-    const fmtOff = v => (v < 0 ? '-0x' : '0x') + Math.abs(v).toString(16).toUpperCase();
 
     // ============================================================
     //  日志
@@ -866,13 +863,13 @@
         $('fileHint').textContent = '✅ 已加载 ' + file.name;
         $('fileInfo').style.display = 'flex';
         $('fileSize').textContent = data.length + ' B';
-        $('fileAddr').textContent = fmtAddr(base);
+        $('fileAddr').textContent = '0x' + base.toString(16).toUpperCase();
         $('fileBlocks').textContent = blocks.length;
         refreshFwVersionDisplay();
         $('btnDownload').disabled = !state.connected;
         // 版本·分发合并面板 (共用同一固件)
-        $('distSrcInfo').textContent = `当前固件: ${file.name} (${data.length} B, 起始 ${fmtAddr(base)})`;
-        $('distBaseAddr').value = fmtAddr(base);
+        $('distSrcInfo').textContent = `当前固件: ${file.name} (${data.length} B, 起始 0x${base.toString(16).toUpperCase()})`;
+        $('distBaseAddr').value = '0x' + base.toString(16).toUpperCase();
         $('btnDistWrite').disabled = false;
         invalidateDistResult(); // 固件变化后旧写入结果失效
         refreshDistPreview();
@@ -953,7 +950,7 @@
             const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
             const base = lastFwMeta ? lastFwMeta.base : FLASH_BASE;
             const off = vAddr - base;
-            $('fwVerOffset').textContent = '偏移: ' + fmtOff(off) + (off < 0 ? ' (固件前)' : '');
+            $('fwVerOffset').textContent = '偏移: 0x' + off.toString(16).toUpperCase() + (off < 0 ? ' (固件前)' : '');
         } catch (e) { $('fwVerOffset').textContent = '偏移: --'; }
     }
     $('flashSize').addEventListener('input', refreshFwVersionDisplay);
@@ -1014,11 +1011,11 @@
             const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
             if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distPreview').textContent = '版本地址超出硬件Flash'; return; }
             const off = vAddr - base;
-            if (off < 0) { $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' (将前补 0x' + (-off).toString(16).toUpperCase() + 'B)'; return; }
-            if (off + 2 > state.firmware.length) { $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' (未写入, 将扩展 0x' + (off + 2 - state.firmware.length).toString(16).toUpperCase() + 'B)'; return; }
+            if (off < 0) { $('distPreview').textContent = '⚠️ 偏移 0x' + off.toString(16).toUpperCase() + ' 在固件起始前, 超出固件范围 → 写入将被拒绝'; return; }
+            if (off + 2 > state.firmware.length) { $('distPreview').textContent = '⚠️ 偏移 0x' + off.toString(16).toUpperCase() + ' 超出固件末尾, 超出固件范围 → 写入将被拒绝'; return; }
             const bytes = state.firmware.slice(off, off + 2);
             const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-            $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' 当前: ' + parseFirmwareVersion(bytes).versionString + ' [' + hex + ']';
+            $('distPreview').textContent = '偏移 0x' + off.toString(16).toUpperCase() + ' 当前: ' + parseFirmwareVersion(bytes).versionString + ' [' + hex + ']';
         } catch (e) { $('distPreview').textContent = '偏移处: ' + e.message; }
     }
     // 配置/固件变化后, 使已写入的结果失效; 状态区回显偏移处固件实际版本
@@ -1033,8 +1030,7 @@
             const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
             if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distStatus').textContent = '版本地址超出Flash'; return; }
             const off = vAddr - base;
-            if (off < 0) { $('distStatus').textContent = '版本地址在固件前'; return; }
-            if (off + 2 > state.firmware.length) { $('distStatus').textContent = '偏移处未写入 (FF FF)'; return; }
+            if (off < 0 || off + 2 > state.firmware.length) { $('distStatus').textContent = '版本地址超出固件范围, 无法写入'; return; }
             const b0 = state.firmware[off], b1 = state.firmware[off + 1];
             if (b0 === 0xFF && b1 === 0xFF) { $('distStatus').textContent = '偏移处未写入 (FF FF)'; return; }
             $('distStatus').textContent = '偏移处版本: v' + parseFirmwareVersion(state.firmware.slice(off, off + 2)).versionString;
@@ -1050,6 +1046,10 @@
             base = parseHexNum($('distBaseAddr').value, '固件起始地址');
             fSize = parseHexNum($('flashSize').value, 'Flash 大小');
             if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) throw new Error('版本地址超出硬件 Flash 范围');
+            const off = vAddr - base;
+            if (off < 0 || off + 2 > state.firmware.length) {
+                throw new Error('版本地址 0x' + vAddr.toString(16).toUpperCase() + ' 超出固件数据范围 (0x' + base.toString(16).toUpperCase() + ' ~ 0x' + (base + state.firmware.length).toString(16).toUpperCase() + ')。\n版本槽必须位于固件数据内部, 写入不会改变固件大小/块数。\n若版本地址在固件起始之前, 它可能属于引导区/保留区, 不应写入应用镜像; 请加载包含版本地址的完整镜像, 或调整版本地址/固件起始地址。');
+            }
         } catch (e) { alert(e.message); return; }
         try {
             const lo = verObj.value & 0xFF, hi = (verObj.value >> 8) & 0xFF;
@@ -1060,7 +1060,7 @@
             if (isHex) {
                 const patched = hexPatchExtend(fwRawHex, base, state.firmware.length, vAddr, lo, hi);
                 blob = new Blob([patched], { type: 'application/octet-stream' });
-                info = `HEX v${verObj.major}.${verObj.minor}.${verObj.patch} @${fmtAddr(vAddr)}`;
+                info = `HEX v${verObj.major}.${verObj.minor}.${verObj.patch} @0x${vAddr.toString(16).toUpperCase()}`;
                 log('✍️ ' + info + ' (已写入, 可下载)', 'ok');
                 // 重载当前固件为写入后的数据 (HEX 重新解析, 起始地址可能前移)
                 fwRawHex = patched;
@@ -1075,7 +1075,7 @@
                 data[vAddr - newStart] = lo;
                 data[vAddr - newStart + 1] = hi;
                 blob = new Blob([data.buffer], { type: 'application/octet-stream' });
-                info = `BIN v${verObj.major}.${verObj.minor}.${verObj.patch} @${fmtAddr(vAddr)}`;
+                info = `BIN v${verObj.major}.${verObj.minor}.${verObj.patch} @0x${vAddr.toString(16).toUpperCase()}`;
                 log('✍️ ' + info + ' (已写入, 可下载)', 'ok');
                 if (newLen !== state.firmware.length) log(`📦 固件扩展 ${state.firmware.length} → ${newLen} 字节 (+${newLen - state.firmware.length})`, 'info');
                 // 重载当前固件为写入后的数据
@@ -1099,11 +1099,11 @@
         state.totalBlocks = blocks.length;
         lastFwMeta = { name: lastFwMeta.name, size: data.length, base };
         $('fileSize').textContent = data.length + ' B';
-        $('fileAddr').textContent = fmtAddr(base);
+        $('fileAddr').textContent = '0x' + base.toString(16).toUpperCase();
         $('fileBlocks').textContent = blocks.length;
         $('fileHint').textContent = '✅ 版本已写入, 当前固件已更新: ' + lastFwMeta.name;
-        $('distSrcInfo').textContent = `当前固件: ${lastFwMeta.name} (${data.length} B, 起始 ${fmtAddr(base)})`;
-        $('distBaseAddr').value = fmtAddr(base);
+        $('distSrcInfo').textContent = `当前固件: ${lastFwMeta.name} (${data.length} B, 起始 0x${base.toString(16).toUpperCase()})`;
+        $('distBaseAddr').value = '0x' + base.toString(16).toUpperCase();
         refreshFwVersionDisplay();
         refreshDistPreview();
     }
