@@ -830,7 +830,7 @@
                     // HEX: 读取为文本, 保存原始内容供分发逐行写入
                     fwRawHex = e.target.result;
                     const parsed = parseHex(fwRawHex);
-                    applyFirmware(file, parsed.data, parsed.baseAddr || FLASH_BASE);
+                    applyFirmware(file, parsed.data, parsed.baseAddr ?? FLASH_BASE);
                     log(`解析 HEX 成功: ${parsed.data.length} 字节`, 'ok');
                 } else if (file.name.toLowerCase().endsWith('.bin')) {
                     // Android WebView 的 prompt() 默认值不生效(空输入框),改用页面内模态框
@@ -870,6 +870,17 @@
         // 版本·分发合并面板 (共用同一固件)
         $('distSrcInfo').textContent = `当前固件: ${file.name} (${data.length} B, 起始 0x${base.toString(16).toUpperCase()})`;
         $('distBaseAddr').value = '0x' + base.toString(16).toUpperCase();
+        // 版本地址自动适配设备 Flash 基址 (CH32V003 为 0x00000000; 仅当前值超出设备 Flash 范围时修正)
+        try {
+            const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            const devBase = Math.min(base, FLASH_BASE);
+            const cur = parseHexNum($('fwVersionAddr').value, '版本地址');
+            if (cur < devBase || cur >= devBase + fSize) {
+                const autoAddr = devBase + 0x3F80; // 版本槽默认位于 Flash 起始 +0x3F80
+                $('fwVersionAddr').value = '0x' + autoAddr.toString(16).toUpperCase();
+                log('📍 版本地址已自动修正: 0x' + cur.toString(16).toUpperCase() + ' → 0x' + autoAddr.toString(16).toUpperCase() + ' (设备 Flash 基址 0x' + devBase.toString(16).toUpperCase() + ')', 'info');
+            }
+        } catch (e) { /* 输入非法时保持原值 */ }
         $('btnDistWrite').disabled = false;
         invalidateDistResult(); // 固件变化后旧写入结果失效
         refreshDistPreview();
@@ -924,8 +935,9 @@
         };
     }
     function extractFirmwareVersion(firmwareData, baseAddr, versionAddr, flashSize) {
-        if (versionAddr < FLASH_BASE || versionAddr >= FLASH_BASE + flashSize) {
-            throw new Error(`版本地址 0x${versionAddr.toString(16)} 超出硬件 Flash 范围`);
+        const devBase = Math.min(baseAddr, FLASH_BASE); // 设备 Flash 基址: CH32V003 为 0x00000000, STM32 系为 0x08000000
+        if (versionAddr < devBase || versionAddr >= devBase + flashSize) {
+            throw new Error(`版本地址 0x${versionAddr.toString(16)} 超出硬件 Flash 范围 (0x${devBase.toString(16)} ~ 0x${(devBase + flashSize).toString(16)})`);
         }
         const offset = versionAddr - baseAddr;
         if (offset < 0 || offset + 2 > firmwareData.length) return { state: 'unprogrammed', version: null, bytes: null, offset };
@@ -1009,10 +1021,11 @@
             const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
             const base = parseHexNum($('distBaseAddr').value, '固件起始地址');
             const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
-            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distPreview').textContent = '版本地址超出硬件Flash'; return; }
+            const devBase = Math.min(base, FLASH_BASE);
+            if (vAddr < devBase || vAddr >= devBase + fSize) { $('distPreview').textContent = '版本地址超出硬件Flash'; return; }
             const off = vAddr - base;
-            if (off < 0) { $('distPreview').textContent = '⚠️ 偏移 0x' + off.toString(16).toUpperCase() + ' 在固件起始前, 超出固件范围 → 写入将被拒绝'; return; }
-            if (off + 2 > state.firmware.length) { $('distPreview').textContent = '⚠️ 偏移 0x' + off.toString(16).toUpperCase() + ' 超出固件末尾, 超出固件范围 → 写入将被拒绝'; return; }
+            if (off < 0) { $('distPreview').textContent = '偏移 0x' + off.toString(16).toUpperCase() + ' (将按写入地址前补 0x' + (-off).toString(16).toUpperCase() + 'B)'; return; }
+            if (off + 2 > state.firmware.length) { $('distPreview').textContent = '偏移 0x' + off.toString(16).toUpperCase() + ' (未写入, 将按写入地址扩展 0x' + (off + 2 - state.firmware.length).toString(16).toUpperCase() + 'B)'; return; }
             const bytes = state.firmware.slice(off, off + 2);
             const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
             $('distPreview').textContent = '偏移 0x' + off.toString(16).toUpperCase() + ' 当前: ' + parseFirmwareVersion(bytes).versionString + ' [' + hex + ']';
@@ -1028,9 +1041,11 @@
             const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
             const base = parseHexNum($('distBaseAddr').value, '固件起始地址');
             const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
-            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distStatus').textContent = '版本地址超出Flash'; return; }
+            const devBase = Math.min(base, FLASH_BASE);
+            if (vAddr < devBase || vAddr >= devBase + fSize) { $('distStatus').textContent = '版本地址超出Flash'; return; }
             const off = vAddr - base;
-            if (off < 0 || off + 2 > state.firmware.length) { $('distStatus').textContent = '版本地址超出固件范围, 无法写入'; return; }
+            if (off < 0) { $('distStatus').textContent = '版本地址在固件前, 写入将前补'; return; }
+            if (off + 2 > state.firmware.length) { $('distStatus').textContent = '偏移处未写入, 写入将扩展'; return; }
             const b0 = state.firmware[off], b1 = state.firmware[off + 1];
             if (b0 === 0xFF && b1 === 0xFF) { $('distStatus').textContent = '偏移处未写入 (FF FF)'; return; }
             $('distStatus').textContent = '偏移处版本: v' + parseFirmwareVersion(state.firmware.slice(off, off + 2)).versionString;
@@ -1045,11 +1060,8 @@
             vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
             base = parseHexNum($('distBaseAddr').value, '固件起始地址');
             fSize = parseHexNum($('flashSize').value, 'Flash 大小');
-            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) throw new Error('版本地址超出硬件 Flash 范围');
-            const off = vAddr - base;
-            if (off < 0 || off + 2 > state.firmware.length) {
-                throw new Error('版本地址 0x' + vAddr.toString(16).toUpperCase() + ' 超出固件数据范围 (0x' + base.toString(16).toUpperCase() + ' ~ 0x' + (base + state.firmware.length).toString(16).toUpperCase() + ')。\n版本槽必须位于固件数据内部, 写入不会改变固件大小/块数。\n若版本地址在固件起始之前, 它可能属于引导区/保留区, 不应写入应用镜像; 请加载包含版本地址的完整镜像, 或调整版本地址/固件起始地址。');
-            }
+            const devBase = Math.min(base, FLASH_BASE);
+            if (vAddr < devBase || vAddr >= devBase + fSize) throw new Error('版本地址超出硬件 Flash 范围 (0x' + devBase.toString(16) + ' ~ 0x' + (devBase + fSize).toString(16) + ')');
         } catch (e) { alert(e.message); return; }
         try {
             const lo = verObj.value & 0xFF, hi = (verObj.value >> 8) & 0xFF;
@@ -1062,10 +1074,12 @@
                 blob = new Blob([patched], { type: 'application/octet-stream' });
                 info = `HEX v${verObj.major}.${verObj.minor}.${verObj.patch} @0x${vAddr.toString(16).toUpperCase()}`;
                 log('✍️ ' + info + ' (已写入, 可下载)', 'ok');
-                // 重载当前固件为写入后的数据 (HEX 重新解析, 起始地址可能前移)
+                // 重载: 与初次载入一致 (parseHex 派生 base/size, 起始地址可能前移)
+                const oldLen = state.firmware.length;
                 fwRawHex = patched;
                 const p = parseHex(patched);
-                reloadFirmware(p.data, p.baseAddr || FLASH_BASE);
+                reloadFirmware(p.data, p.baseAddr ?? FLASH_BASE);
+                if (p.data.length !== oldLen) log(`📦 固件扩展 ${oldLen} → ${p.data.length} 字节 (+${p.data.length - oldLen})`, 'info');
             } else {
                 const newStart = Math.min(base, vAddr);
                 const newLen = Math.max(base + state.firmware.length, vAddr + 2) - newStart;
@@ -1119,7 +1133,7 @@
     $('fwVersionAddr').addEventListener('input', () => { refreshFwVersionDisplay(); refreshDistPreview(); invalidateDistResult(); });
     $('flashSize').addEventListener('input', () => { refreshFwVersionDisplay(); refreshDistPreview(); invalidateDistResult(); });
 
-    // 逐行保留 + 缺失区域追加 (复用 v0.3.0 逻辑)
+    // 逐行保留 + 缺失区域按写入地址/长度最小追加 (版本写入为连续 2 字节)
     function hexPatchExtend(text, baseAddr, dataLen, versionAbs, b0, b1) {
         const writes = new Map([[versionAbs, b0], [versionAbs + 1, b1]]);
         let segBase = 0;
@@ -1144,26 +1158,23 @@
         }
         const covered = pos => segs.some(s => pos >= s.start && pos < s.end);
         const missing = Array.from(writes.keys()).filter(p => !covered(p));
-        const parsed = parseHex(text);
-        const pBase = parsed.baseAddr || FLASH_BASE;
-        const full = parsed.data;
-        const blocks = new Map();
-        for (const pos of missing) {
-            const blk = pos & ~0xF;
-            if (!blocks.has(blk)) {
-                const arr = new Uint8Array(16); arr.fill(0xFF);
-                for (let i = 0; i < 16; i++) { const rel = blk + i - pBase; if (rel >= 0 && rel < full.length) arr[i] = full[rel]; }
-                blocks.set(blk, arr);
-            }
-        }
-        for (const [pos, val] of writes) { const blk = pos & ~0xF; if (blocks.has(blk)) blocks.get(blk)[pos & 0xF] = val; }
-        const blkAddrs = Array.from(blocks.keys()).sort((a, b) => a - b);
         const tail = [];
         let lastHi = -1;
-        for (const blk of blkAddrs) {
-            const hi = (blk >> 16) & 0xFFFF;
+        if (missing.length > 0) {
+            // 按写入地址+写入长度扩展: 只追加覆盖缺失写入位置的最小记录, 不填充空隙
+            const parsed = parseHex(text);
+            const pBase = parsed.baseAddr ?? FLASH_BASE;
+            const full = parsed.data;
+            const minPos = Math.min(...missing);
+            const maxPos = Math.max(...missing);
+            const recLen = maxPos - minPos + 1;
+            const arr = new Uint8Array(recLen);
+            arr.fill(0xFF);
+            for (let i = 0; i < recLen; i++) { const rel = minPos + i - pBase; if (rel >= 0 && rel < full.length) arr[i] = full[rel]; }
+            for (const [pos, val] of writes) { const rel = pos - minPos; if (rel >= 0 && rel < recLen) arr[rel] = val; }
+            const hi = (minPos >> 16) & 0xFFFF;
             if (hi !== lastHi) { tail.push(mkLine([0x02, 0x00, 0x00, 0x04, (hi >> 8) & 0xFF, hi & 0xFF])); lastHi = hi; }
-            tail.push(mkLine([16, (blk >> 8) & 0xFF, blk & 0xFF, 0x00, ...blocks.get(blk)]));
+            tail.push(mkLine([recLen, (minPos >> 8) & 0xFF, minPos & 0xFF, 0x00, ...arr]));
         }
         return head.concat(tail, endRec ? [endRec] : []).filter(l => l !== '').join('\r\n');
         function mkLine(body) { let s = 0; for (const b of body) s += b; return ':' + body.concat((-s) & 0xFF).map(x => x.toString(16).padStart(2, '0').toUpperCase()).join(''); }
