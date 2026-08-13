@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MegaHz BLE OTA Studio</title>
+<style>
+    :root {
+        /* 日间(浅色)风格 */
+        --bg: #f0f4f8; --surface: #ffffff; --surface2: #eef2f7; --border: #d0d7e2;
+        --text: #1a2332; --muted: #5a6a7a; --accent: #2b7be4; --accent2: #1f6ac9;
+        --ok: #27ae60; --warn: #e08c0a; --err: #e74c3c; --tx: #6f42c1; --rx: #0e8a8a;
+        --radius: 14px; --mono: 'JetBrains Mono','Consolas',monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+        background: var(--bg); color: var(--text);
+        min-height: 100vh; display: flex; justify-content: center;
+    }
+    .app { max-width: 1240px; width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ===== 顶部栏 ===== */
+    header {
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 14px 20px; flex-wrap: wrap; gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand .logo {
+        width: 38px; height: 38px; border-radius: 10px;
+        background: linear-gradient(135deg, var(--accent), #6f42c1);
+        display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .brand .logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .brand h1 { font-size: 18px; font-weight: 700; letter-spacing: .3px; white-space: nowrap; }
+    .brand small {
+        color: var(--muted); font-weight: 400; font-size: 12px;
+        display: block; white-space: nowrap; line-height: 1.4;
+    }
+    .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    /* ===== 顶部栏 × 设备连接 (方案B 左右分栏) ===== */
+    .headerB {
+        display: grid; grid-template-columns: 1.3fr 1fr; gap: 26px; align-items: center;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 18px 24px;
+    }
+    .headerB .left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .headerB .uuid-row { display: flex; flex-direction: column; gap: 8px; }
+    /* UUID 设置折叠: 桌面隐藏 summary(始终展开), 手机模式显示折叠按钮 */
+    .uuid-fold summary { display: none; }
+    @media (max-width: 640px) {
+        .uuid-fold summary {
+            display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+            font-size: 12.5px; color: var(--accent); font-weight: 600;
+            padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+            background: var(--surface2); user-select: none; margin-bottom: 4px;
+        }
+        .uuid-fold summary::after { content: '▾'; transition: transform .15s; }
+        .uuid-fold[open] summary::after { transform: rotate(180deg); }
+    }
+    .headerB .field { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+    .headerB .field label { white-space: nowrap; min-width: 62px; }
+    .headerB .field input { flex: 1; }
+    .headerB .right {
+        border-left: 1px solid var(--border); padding-left: 26px;
+        display: flex; flex-direction: column; gap: 11px; align-items: flex-start;
+    }
+    .headerB .st-row { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; }
+    .headerB .op-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    @media (max-width: 860px) {
+        .headerB { grid-template-columns: 1fr; }
+        .headerB .right { border-left: none; border-top: 1px solid var(--border); padding-left: 0; padding-top: 14px; }
+    }
+    .status-dot { width: 11px; height: 11px; border-radius: 50%; background: #4a5a6a; display: inline-block; }
+    .status-dot.connected { background: var(--ok); box-shadow: 0 0 8px rgba(39,174,96,.5); }
+    .status-dot.busy { background: var(--warn); animation: pulse 1s infinite; }
+    .status-dot.error { background: var(--err); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+    .chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--surface2); border: 1px solid var(--border);
+        padding: 4px 12px; border-radius: 20px; font-size: 12.5px; color: var(--muted);
+        max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .chip b { color: var(--text); font-weight: 600; }
+    .ver-badge {
+        background: rgba(43,123,228,.16); color: var(--accent2);
+        border: 1px solid rgba(43,123,228,.35); border-radius: 20px; padding: 1px 10px;
+        font-size: 12px; font-family: var(--mono);
+    }
+
+    /* ===== 布局 ===== */
+    .layout { display: flex; gap: 16px; align-items: flex-start; }
+    .stepper {
+        display: flex; flex-direction: column; gap: 6px;
+        position: sticky; top: 20px; width: 190px; flex-shrink: 0;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 12px;
+    }
+    .step {
+        display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+        border-radius: 10px; color: var(--muted); cursor: pointer; transition: all .15s;
+        font-size: 13.5px; user-select: none;
+    }
+    .step:hover { background: var(--surface2); }
+    .step.active { background: var(--surface2); color: var(--text); }
+    .step .num {
+        width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+        background: var(--surface2); display: flex; align-items: center; justify-content: center;
+        font-size: 12.5px; font-weight: 700;
+    }
+    .step.active .num { background: var(--accent); color: #fff; }
+    .step.done .num { background: rgba(39,174,96,.25); color: var(--ok); }
+
+    main { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 20px 22px;
+    }
+    .card-title {
+        font-size: 15px; font-weight: 700; margin-bottom: 14px;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .tag { font-size: 11px; font-weight: 400; color: var(--muted); background: var(--surface2); padding: 2px 10px; border-radius: 20px; }
+
+    /* ===== 表单 ===== */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .field input, .field select {
+        width: 100%; padding: 8px 10px; border-radius: 9px;
+        border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+        font-size: 13px; outline: none; transition: border-color .15s;
+        font-family: var(--mono);
+    }
+    .field input:focus { border-color: var(--accent); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* 按钮配色沿用 index.html */
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 8px; padding: 9px 22px; border: none; border-radius: 12px;
+        font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        background: #e8ecf1; color: #1a2332; user-select: none; white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+    .btn-primary { background: #2b7be4; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #1f6ac9; }
+    .btn-ok { background: #27ae60; color: #fff; }
+    .btn-ok:hover:not(:disabled) { background: #1e8f4e; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-ghost { background: transparent; border: 2px solid #d0d7e2; color: #1a2332; }
+    .btn-ghost:hover:not(:disabled) { background: #f0f4f8; border-color: #b0bccd; }
+    .btn-sm { padding: 5px 14px; font-size: 13px; border-radius: 8px; }
+    .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+    .spacer { flex: 1; }
+
+    /* ===== 文件加载框(复用) ===== */
+    .dropzone {
+        border: 2px dashed var(--border); border-radius: 16px; padding: 0px 0px;
+        text-align: center; background: var(--surface); cursor: pointer; transition: all .2s;
+    }
+    .dropzone:hover { border-color: var(--accent); }
+    .dropzone.dragover { border-color: var(--accent); background: rgba(43,123,228,.07); }
+    .dropzone .icon { font-size: 40px; display: block; margin-bottom: 6px; }
+    .dropzone .fname { font-weight: 600; font-size: 15px; word-break: break-all; }
+    .dropzone .fhint { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .file-info { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .file-info span {
+        background: var(--surface2); border: 1px solid var(--border);
+        padding: 3px 14px; border-radius: 20px; font-size: 12.5px; color: var(--muted);
+        font-family: var(--mono);
+    }
+    .file-info span b { color: var(--text); font-weight: 600; }
+
+    /* ===== 下载流程 ===== */
+    .steps { display: flex; gap: 8px; margin-bottom: 14px; }
+    .step-pill {
+        flex: 1; text-align: center; padding: 9px 6px; border-radius: 9px;
+        background: var(--surface2); color: var(--muted); font-size: 12.5px;
+        border: 1px solid transparent; transition: all .2s;
+    }
+    .step-pill.active { background: rgba(43,123,228,.14); color: var(--accent2); border-color: rgba(43,123,228,.4); }
+    .step-pill.done { background: rgba(39,174,96,.12); color: var(--ok); border-color: rgba(39,174,96,.35); }
+    .progress { height: 10px; background: var(--surface2); border-radius: 20px; overflow: hidden; }
+    .progress .fill {
+        height: 100%; width: 0%; border-radius: 20px;
+        background: linear-gradient(90deg, var(--accent), var(--accent2));
+        transition: width .3s ease; position: relative;
+    }
+    .progress .fill::after {
+        content: ''; position: absolute; inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+        animation: shine 1.6s infinite;
+    }
+    @keyframes shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .progress-label { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); margin-top: 6px; font-family: var(--mono); }
+    .progress-label .spacer { flex: 1; }
+    .progress-label .dl-status { font-weight: 600; }
+
+    /* ===== 日志 ===== */
+    .log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+    .log-head { display: flex; align-items: center; gap: 6px 10px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
+    .log-head .t { font-weight: 700; font-size: 14px; white-space: nowrap; }
+    .log-head .cnt { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .log-head .toggle { white-space: nowrap; }
+    .log-head .spacer { flex: 1; }
+    .log-body {
+        font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+        max-height: 230px; overflow-y: auto; padding: 10px 0; background: #f7f9fc;
+        border-radius: 0 0 var(--radius) var(--radius);
+    }
+    .log-body::-webkit-scrollbar { width: 5px; }
+    .log-body::-webkit-scrollbar-thumb { background: #c0c8d4; border-radius: 10px; }
+    .line { display: flex; gap: 12px; padding: 1px 18px; }
+    .line .lt { color: #8a9aaa; flex-shrink: 0; }
+    .line.info { color: #1f6ac9; } .line.ok { color: #1e8f4e; } .line.err { color: #c0392b; }
+    .line.warn { color: #b9770e; } .line.tx { color: var(--tx); } .line.rx { color: var(--rx); }
+
+    .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+    .toggle input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+
+    /* 折叠按钮 (OTA 分发面板) */
+    .collapse-btn {
+        margin-left: auto; flex-shrink: 0;
+        width: 30px; height: 30px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 50%;
+        background: var(--surface2); border: 1px solid var(--border);
+        color: var(--accent); font-size: 15px; line-height: 1;
+        cursor: pointer; user-select: none;
+        transition: transform .3s cubic-bezier(.4,1.6,.4,1), background .2s, border-color .2s, color .2s, box-shadow .2s;
+    }
+    .collapse-btn:hover { background: rgba(43,123,228,.12); border-color: var(--accent); box-shadow: 0 2px 8px rgba(43,123,228,.3); }
+    .collapse-btn:active { transform: scale(.9); }
+    .collapse-btn.open { transform: rotate(90deg); background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(43,123,228,.4); }
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    #verDistBody { animation: fadeInDown .28s ease; }
+
+    @media (max-width: 900px) { .stepper { display: none; } }
+
+    /* ===== 移动端响应式优化 (方案A) ===== */
+    /* 手机模式 tab 导航: 桌面隐藏, 仅窄屏显示(见下方 media) */
+    .sec-tabs { display: none; }
+    @media (max-width: 640px) {
+        body { overflow-x: hidden; }
+        /* 预览版: tab 分页(手机模式) — 固件加载不折叠, 分发配置独立 tab */
+        main { display: block; }
+        .sec-tabs { display: flex; gap: 6px; padding: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 2px; }
+        .sec-tab { flex: 1; padding: 8px 4px; border: none; background: transparent; border-radius: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
+        .sec-tab.active { background: var(--accent); color: #fff; font-weight: 600; }
+        #sec-fw, #sec-ver-dist { display: none; } /* 仅这两个进 tab, 升级流程常显在下方 */
+        #sec-fw.show, #sec-ver-dist.show { display: block; }
+        /* 分发配置 4 项 2x2 排列 */
+        #sec-ver-dist .grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        #sec-ver-dist .grid .field:nth-child(2n+1) { grid-column: 1; }
+        #sec-ver-dist .grid .field:nth-child(2n) { grid-column: 2; }
+        .app { padding: 10px; gap: 10px; }
+        .card { padding: 12px 12px; border-radius: 12px; margin-bottom: 8px; } /* 紧凑统一间距 */
+        .card-title { font-size: 14px; margin-bottom: 10px; }
+        header.headerB { padding: 12px 14px; border-radius: 12px; gap: 14px; }
+        .brand .logo { width: 34px; height: 34px; font-size: 18px; }
+        .brand h1 { font-size: 15px; }
+        .brand small { font-size: 11px; }
+        /* 输入控件放大字号防止 iOS 聚焦缩放, 并避免挤压 */
+        .field input, .field select { font-size: 16px; padding: 9px 10px; }
+        .headerB .field { flex-wrap: wrap; }
+        .headerB .field label { min-width: 0; width: 100%; margin-bottom: 2px; }
+        .headerB .field input { width: 100%; }
+        /* 大触控目标 */
+        .btn { min-height: 44px; }
+        .btn-sm { min-height: 40px; padding: 8px 12px; font-size: 13px; }
+        .collapse-btn { width: 28px; height: 28px; }
+        /* 网格与步骤单列紧凑 */
+        .grid { grid-template-columns: 1fr; gap: 10px; }
+        .steps { gap: 5px; }
+        .step-pill { padding: 8px 4px; font-size: 11.5px; }
+        /* 文件加载与徽章 */
+        .dropzone { padding: 18px 12px; }
+        .file-info { gap: 6px; margin-top: 10px; }
+        .file-info span { padding: 2px 10px; font-size: 11.5px; }
+        .chip { font-size: 11.5px; padding: 3px 10px; }
+        .ver-badge { font-size: 11px; padding: 0 8px; }
+        /* 日志: 行内不换行, 横向滚动, 避免挤压错位 */
+        .log-body { font-size: 11.5px; line-height: 1.6; max-height: 210px; }
+        .line { padding: 1px 12px; white-space: nowrap; overflow-x: auto; }
+        /* 操作按钮组: 自动伸展等宽 */
+        .row { gap: 8px; }
+        .row .btn { flex: 1 1 auto; }
+        .timeout-config { gap: 8px; }
+        .timeout-config input { width: 56px !important; }
+        .progress-label { font-size: 11.5px; }
+        /* 日志标题栏: 单行紧凑, 不被撑大 */
+        .log-head { padding: 10px 12px; gap: 6px 8px; }
+        .log-head .t { font-size: 13px; }
+        .log-head .cnt { font-size: 11px; }
+        .log-head .toggle { font-size: 12px; gap: 5px; }
+        .log-head .btn-sm { padding: 5px 10px; font-size: 12px; min-height: 32px; }
+        /* 预览版: 分发配置面板整体缩小, 适配窄列 */
+        #sec-ver-dist .grid { gap: 6px; }
+        #sec-ver-dist .field { gap: 3px; }
+        #sec-ver-dist .field label { font-size: 11px; }
+        #sec-ver-dist .field input { font-size: 13px; padding: 5px 7px; }
+        #sec-ver-dist .hint { font-size: 10px; margin-top: 2px; }
+        #sec-ver-dist .row { gap: 6px; margin-top: 8px; }
+        #sec-ver-dist .row .btn { padding: 6px 8px; font-size: 12px; min-height: 34px; flex: 1 1 auto; }
+        /* 预览版: 固件加载页 手机模式左右布局 + 最小高度(仅显示态生效, 否则被 display:none 隐藏) */
+        #sec-fw.show { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 78px; }
+        #sec-fw .card-title { flex: 1 1 100%; margin-bottom: 0; }
+        #sec-fw .dropzone {
+            flex: 1 1 auto; margin: 0; min-height: 58px; padding: 10px 12px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        #sec-fw .dropzone .icon { font-size: 26px; margin-bottom: 2px; }
+        #sec-fw .dropzone .fname { font-size: 14px; }
+        #sec-fw .dropzone .fhint { font-size: 12px; margin-top: 2px; }
+        #sec-fw .file-info { flex: 0 0 auto; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; margin-top: 0; }
+        #sec-fw .file-info span { width: 100%; justify-content: flex-start; padding: 2px 10px; font-size: 11.5px; }
+    }
+</style>
+</head>
+<body>
+<div class="app">
+    <!-- ===== 顶部栏 × 设备连接 (合并, 方案B 左右分栏) ===== -->
+    <header class="headerB">
+        <div class="left">
+            <div class="brand">
+                <div class="logo"><img src="megahzico4k4286.ico" alt="MegaHz"></div>
+                <div>
+                    <h1>MegaHz BLE OTA Studio</h1>
+                    <small>by MegaHz Tec</small>
+                </div>
+            </div>
+            <details id="uuidFold" class="uuid-fold" open>
+                <summary>UUID 设置</summary>
+                <div class="uuid-row">
+                    <div class="field"><label>服务 UUID</label>
+                        <input id="serviceUUID" value="6e400001-b5a3-f393-e0a9-e50e24dcca9e"></div>
+                    <div class="field"><label>RX 特征</label>
+                        <input id="txUUID" value="6e400002-b5a3-f393-e0a9-e50e24dcca9e"></div>
+                    <div class="field"><label>TX 特征</label>
+                        <input id="rxUUID" value="6e400003-b5a3-f393-e0a9-e50e24dcca9e"></div>
+                </div>
+            </details>
+        </div>
+        <div class="right">
+            <div class="st-row">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">未连接</span>
+            </div>
+            <span class="chip" id="deviceChip">⚡ 设备: 无</span>
+            <span class="chip" id="deviceVerChip">设备版本: <span class="ver-badge" id="deviceVerBadge">未读取</span></span>
+            <div class="op-row">
+                <button class="btn btn-primary btn-sm" id="btnConnect" onclick="onConnect()">🔗 连接</button>
+                <button class="btn btn-danger btn-sm" id="btnDisconnect" onclick="onDisconnect()" style="display:none;">断开</button>
+                <button class="btn btn-ok btn-sm" id="btnReadDevVer" onclick="readDeviceVersion()" disabled>🔍 查询设备版本</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- ===== 左侧步骤导航 ===== -->
+<!--         <nav class="stepper">
+            <div class="step active" data-sec="sec-connect"><span class="num">1</span> 连接设备</div>
+            <div class="step" data-sec="sec-fw"><span class="num">2</span> 固件加载</div>
+            <div class="step" data-sec="sec-ver-dist"><span class="num">3</span> 版本 · 分发</div>
+            <div class="step" data-sec="sec-flash"><span class="num">4</span> 下载流程</div>
+        </nav> -->
+
+    <main>
+        <!-- 手机模式 tab 导航(桌面隐藏) -->
+        <div class="sec-tabs" id="secTabs">
+            <button class="sec-tab active" data-sec="sec-fw">📦 固件加载</button>
+            <button class="sec-tab" data-sec="sec-ver-dist">🏷️ OTA 固件分发配置</button>
+        </div>
+        <!-- ① 固件加载(复用文件加载框) -->
+            <section class="card" id="sec-fw">
+                <div class="card-title"><span class="chip" id="fwChip">📦 固件: 未加载</span></div>
+                <div class="dropzone" id="fileDropZone" onclick="document.getElementById('fileInput').click()">
+                    <span class="icon">📄</span>
+                    <div class="fname" id="fileName">点击选择或拖拽固件文件</div>
+                    <div class="fhint" id="fileHint">支持 Intel HEX (.hex) 或 二进制 (.bin)</div>
+                </div>
+                <input type="file" id="fileInput" accept=".hex,.bin" onchange="onFileSelected(event)" style="display:none;">
+                <div class="file-info" id="fileInfo" style="display:none;">
+                    <span >大小 <b class="ver-badge" id="fileSize">--</b></span>
+                    <span >起始 <b class="ver-badge" id="fileAddr">--</b></span>
+                    <span >块数 <b class="ver-badge" id="fileBlocks">--</b></span>
+                    <span >版本 <b class="ver-badge" id="fileVer">--</b></span>
+                </div>
+            </section>
+
+            <!-- ③ 版本配置 · OTA 分发 (合并面板, 默认显示不折叠) -->
+            <section class="card" id="sec-ver-dist">
+                <div id="verDistBody" style="display:block;">
+                <div class="grid">
+                    <div class="field"><label>Flash 大小</label>
+                        <input id="flashSize" list="flashSizePresets" value="0x4000">
+                        <datalist id="flashSizePresets">
+                            <option value="0x4000">16 KB</option>
+                            <option value="0x8000">32 KB</option>
+                            <option value="0x10000">64 KB</option>
+                            <option value="0x20000">128 KB</option>
+                            <option value="0x40000">256 KB</option>
+                            <option value="0x80000">512 KB</option>
+                            <option value="0x100000">1 MB</option>
+                        </datalist>
+                        <div class="hint">按实际硬件选择, 可手输 hex</div>
+                    </div>
+                    <div class="field"><label>版本地址 (绝对 Flash)</label>
+                        <input id="fwVersionAddr" value="0x08003F80">
+                        <div class="hint" id="fwVerOffset">偏移: --</div>
+                    </div>
+                    <div class="field"><label>固件起始 (hex)</label>
+                        <input id="distBaseAddr" value="0x08000000">
+                        <div class="hint">加载固件后自动填充</div>
+                    </div>
+                    <div class="field"><label>版本号</label>
+                        <input id="distVersion" value="1.0.0" placeholder="major.minor.patch">
+                        <div class="hint" id="distPreview">偏移处: --</div>
+                    </div>
+                </div>
+                <div class="row" style="margin-top:16px;">
+                    <button class="btn btn-primary" id="btnDistWrite" onclick="onDistWrite()" disabled>✍️ 写入版本号</button>
+                    <button class="btn btn-ok" id="btnDistDownload" onclick="onDistDownload()" disabled>📥 导出固件</button>
+                    <span class="hint" id="distStatus" style="margin-top:0;align-self:center;">未写入</span>
+                </div>
+                <div class="hint" style="margin-top:12px;" id="distSrcInfo">当前固件: 未加载（请在上方"固件加载"面板选择）</div>
+                </div>
+            </section>
+
+            <!-- ⑤ 下载流程 -->
+            <section class="card" id="sec-flash">
+                <div class="card-title">⬇️ 升级流程 <span class="tag">OTA</span></div>
+                <div class="steps">
+                    <div class="step-pill" id="spErase">🧹 擦除</div>
+                    <div class="step-pill" id="spProgram">📝 编程</div>
+                    <div class="step-pill" id="spVerify">🔍 验证</div>
+                    <div class="step-pill" id="spEnd">🏁 结束</div>
+                </div>
+                <div class="progress"><div class="fill" id="progressFill"></div></div>
+                <div class="progress-label">
+                    <span id="progressText">等待开始...</span>
+                    <span class="spacer"></span>
+                    <span class="dl-status" id="downloadStatus"></span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="row" style="margin-top:14px;">
+                    <button class="btn btn-ok" id="btnDownload" onclick="onStartDownload()" disabled>⬇️ 开始</button>
+                    <button class="btn btn-danger" id="btnAbort" onclick="onAbort()" disabled>⏹ 停止</button>
+                </div>
+                <div class="timeout-config" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:13px;color:var(--muted);">
+                    <span>擦除超时 (秒):</span>
+                    <input type="number" id="eraseTimeout" value="10" min="5" max="60" step="1" style="width:64px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:var(--mono);">
+                    <span>编程/验证超时 (秒):</span>
+                    <input type="number" id="cmdTimeout" value="8" min="2" max="20" step="1" style="width:64px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:var(--mono);">
+                    <span>IAP 跳转等待 (秒):</span>
+                    <input type="number" id="jumpWait" value="2" min="0" max="10" step="0.5" style="width:64px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:var(--mono);">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ===== 日志 ===== -->
+    <div class="log-panel">
+        <div class="log-head">
+            <span class="t">📋 日志</span><span class="cnt" id="logCount">0</span>
+            <label class="toggle" style="margin-left:6px;"><input type="checkbox" id="chkHex" > Hex</label>
+            <label class="toggle"><input type="checkbox" id="chkAscii"> ASCII</label>
+            <span class="spacer"></span>
+            <button class="btn btn-ghost btn-sm" onclick="clearLogs()">清空</button>
+        </div>
+        <div class="log-body" id="logBody"></div>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    //  常量
+    // ============================================================
+    const FLASH_BASE = 0x08000000;
+    const CMD_JUMP_IAP = 0x84, CMD_IAP_ERASE = 0x81, CMD_IAP_PROM = 0x80, CMD_IAP_VERIFY = 0x82;
+
+    // ============================================================
+    //  状态
+    // ============================================================
+    let state = { connected: false, busy: false, abortFlag: false, firmware: null, blocks: [], totalBlocks: 0, doneBlocks: 0, txChar: null };
+    let lastFwMeta = null;
+    let fwRawHex = null;    // 固件为 HEX 时的原始文本 (共用分发写入用)
+    let logEntries = [];
+    const MAX_LOG = 300;
+    const $ = id => document.getElementById(id);
+    // 地址显示: 统一补零 8 位十六进制 (0x08000000); 偏移可为负, 显示为 -0x…
+    const fmtAddr = v => '0x' + v.toString(16).toUpperCase().padStart(8, '0');
+    const fmtOff = v => (v < 0 ? '-0x' : '0x') + Math.abs(v).toString(16).toUpperCase();
+
+    // ============================================================
+    //  日志
+    // ============================================================
+    function log(msg, type = 'info') {
+        const t = new Date().toLocaleTimeString();
+        logEntries.push({ t, msg, type });
+        if (logEntries.length > MAX_LOG) logEntries.shift();
+        let html = '';
+        for (const e of logEntries) {
+            html += `<div class="line ${e.type}"><span class="lt">[${e.t}]</span><span>${esc(e.msg)}</span></div>`;
+        }
+        $('logBody').innerHTML = html;
+        $('logBody').scrollTop = $('logBody').scrollHeight;
+        $('logCount').textContent = logEntries.length;
+    }
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function clearLogs() { logEntries = []; $('logBody').innerHTML = ''; $('logCount').textContent = 0; }
+
+    // 报文帧日志: 按"显示 Hex / 显示 Ascii"复选框决定输出
+    function logFrame(prefix, bytes, type) {
+        const showHex = $('chkHex').checked;
+        const showAscii = $('chkAscii').checked;
+        if (!showHex && !showAscii) return;
+        const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        const ascii = Array.from(bytes).map(b => (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b) : '.').join('');
+        let msg = prefix + ':';
+        if (showHex) msg += ' ' + hex;
+        if (showAscii) msg += ' |' + ascii;
+        log(msg, type);
+    }
+
+    // ============================================================
+    //  BLE 收发 (队列版, 移植自 index.html)
+    // ============================================================
+    const CMD_APP_INFO = 0x85;
+    let rxBuffer = [];          // 接收缓冲 (支持粘包/跨包)
+    let resolveResponse = null; // 当前等待响应的回调
+    let responseTimer = null;
+    let sendQueue = [];         // 命令队列
+    let sendProcessing = false;
+
+    function onRxData(event) {
+        const data = new Uint8Array(event.target.value.buffer);
+        logFrame('RX', data, 'rx');
+        for (const b of data) rxBuffer.push(b);
+        tryParseResponse();
+    }
+
+    // 解析 6 字节响应 AA 55 cmd status 55 AA
+    function tryParseResponse() {
+        while (rxBuffer.length >= 6) {
+            let start = -1;
+            for (let i = 0; i <= rxBuffer.length - 6; i++) {
+                if (rxBuffer[i] === 0xAA && rxBuffer[i + 1] === 0x55 && rxBuffer[i + 4] === 0x55 && rxBuffer[i + 5] === 0xAA) { start = i; break; }
+            }
+            if (start === -1) { if (rxBuffer.length > 5) rxBuffer = rxBuffer.slice(-5); return; }
+            const resp = new Uint8Array(rxBuffer.slice(start, start + 6));
+            rxBuffer = rxBuffer.slice(start + 6);
+            if (resolveResponse) {
+                const cb = resolveResponse;
+                resolveResponse = null;
+                clearTimeout(responseTimer);
+                cb({ status: (resp[2] << 8) | resp[3], raw: resp }); // 16位状态, 高位在前
+            }
+        }
+    }
+
+    function cleanResponse() {
+        if (resolveResponse) {
+            const cb = resolveResponse;
+            resolveResponse = null;
+            clearTimeout(responseTimer);
+            cb(null); // 触发超时 reject
+        }
+    }
+
+    // 队列版发送 (与 index.html 一致)
+    function sendPacket(cmd, data = null, timeoutMs = 3000, extraBytes = null) {
+        return new Promise((resolve, reject) => {
+            sendQueue.push({ cmd, data, timeoutMs, extraBytes, resolve, reject });
+            processSendQueue();
+        });
+    }
+
+    async function processSendQueue() {
+        if (sendProcessing) return;
+        if (state.abortFlag || !state.connected) {
+            while (sendQueue.length > 0) {
+                const t = sendQueue.shift();
+                t.reject(new Error(state.abortFlag ? '操作已中止' : '连接已断开'));
+            }
+            sendProcessing = false;
+            return;
+        }
+        if (sendQueue.length === 0) return;
+        sendProcessing = true;
+
+        const task = sendQueue.shift();
+        const { cmd, data, timeoutMs, extraBytes, resolve, reject } = task;
+        rxBuffer = [];
+
+        // 构建数据包
+        const len = data ? data.length : 0;
+        const pkt = [0xAA, 0x55, cmd, len];
+        let sum = cmd + len;
+        if (extraBytes) { for (const b of extraBytes) { pkt.push(b); sum += b; } }
+        if (data) { for (const b of data) { pkt.push(b); sum += b; } }
+        pkt.push(sum & 0xFF, (sum >> 8) & 0xFF, 0x55, 0xAA);
+        const sendBuf = new Uint8Array(pkt);
+        logFrame('TX', sendBuf, 'tx');
+
+        let responseResolve, responseReject;
+        const responsePromise = new Promise((res, rej) => { responseResolve = res; responseReject = rej; });
+        resolveResponse = (resp) => {
+            if (resp) responseResolve(resp);
+            else responseReject(new Error(`响应超时 (${timeoutMs}ms)`));
+        };
+        responseTimer = setTimeout(() => {
+            if (resolveResponse) { const cb = resolveResponse; resolveResponse = null; cb(null); }
+        }, timeoutMs);
+
+        try {
+            await state.txChar.writeValue(sendBuf.buffer);
+            const resp = await responsePromise;
+            clearTimeout(responseTimer);
+            const raw = new Uint8Array(resp.raw);
+            const hexStr = Array.from(raw).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            if (resp.status === 0x0000) {
+                resolve({ success: true, status: resp.status, raw, hex: hexStr });
+            } else if (resp.status === 0x0001) {
+                resolve({ success: false, status: resp.status, raw, hex: hexStr, error: '设备返回错误' });
+            } else if (resp.status === 0x0002) {
+                resolve({ success: false, status: resp.status, raw, hex: hexStr, error: '流程结束(设备已退出IAP)' });
+            } else {
+                resolve({ success: false, status: resp.status, raw, hex: hexStr, error: `未知状态 0x${resp.status.toString(16).toUpperCase()}` });
+            }
+        } catch (err) {
+            clearTimeout(responseTimer);
+            reject(err);
+        } finally {
+            if (resolveResponse) resolveResponse = null;
+            sendProcessing = false;
+            processSendQueue();
+        }
+    }
+
+    // 结束命令 (无回复)
+    function sendEndCommand() {
+        return new Promise((resolve, reject) => {
+            if (!state.connected || !state.txChar) { reject(new Error('蓝牙未连接')); return; }
+            const pkt = new Uint8Array([0xAA, 0x55, 0x83, 0x00, 0x83, 0x00, 0x55, 0xAA]);
+            logFrame('TX', pkt, 'tx');
+            state.txChar.writeValue(pkt).then(resolve).catch(reject);
+        });
+    }
+    function setStatus(text, type = '') {
+        $('statusText').textContent = text;
+        $('statusDot').className = 'status-dot' + (type ? ' ' + type : '');
+    }
+
+    // ============================================================
+    //  步骤导航
+    // ============================================================
+    document.querySelectorAll('.step').forEach(el => {
+        el.addEventListener('click', () => {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById(el.dataset.sec).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    // 滚动高亮当前步骤 (导航被隐藏时自动跳过)
+    const secs = ['sec-fw', 'sec-ver-dist', 'sec-flash'];
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) {
+            document.querySelectorAll('.step').forEach(s => s.classList.toggle('active', s.dataset.sec === e.target.id));
+        }});
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    secs.forEach(id => { const el = document.getElementById(id); if (el) io.observe(el); });
+
+    // ============================================================
+    //  连接 (真实 BLE)
+    // ============================================================
+    async function onConnect() {
+        if (state.connected) return;
+        if (!navigator.bluetooth) {
+            alert('浏览器不支持 Web Bluetooth API，请使用 Chrome/Edge 并通过 HTTPS 或 localhost 访问。');
+            log('❌ 浏览器不支持 Web Bluetooth API', 'err');
+            setStatus('不支持蓝牙', 'error');
+            return;
+        }
+        try {
+            setStatus('正在扫描...', 'busy');
+            const uuid = $('serviceUUID').value.trim();
+            const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [uuid] }], optionalServices: [uuid] });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(uuid);
+            const txChar = await service.getCharacteristic($('txUUID').value.trim());
+            const rxChar = await service.getCharacteristic($('rxUUID').value.trim());
+            await rxChar.startNotifications();
+            rxChar.addEventListener('characteristicvaluechanged', onRxData);
+            device.addEventListener('gattserverdisconnected', onDisconnect); // 设备意外断开时同步 UI
+            state.server = server;   // 保存 server, 供 onDisconnect 真正断开 BLE
+            state.device = device;
+            state.txChar = txChar;
+            state.connected = true;
+            $('deviceChip').innerHTML = '⚡ 设备: <b>' + (device.name || 'BLE设备') + '</b>';
+            setStatus('已连接', 'connected');
+            log('✅ 蓝牙连接成功', 'ok');
+            $('btnConnect').style.display = 'none';
+            $('btnDisconnect').style.display = 'inline-flex';
+            $('btnDownload').disabled = !state.firmware;
+            $('btnReadDevVer').disabled = false;
+        } catch (err) {
+            log('❌ 连接失败: ' + err.message, 'err');
+            setStatus('连接失败', 'error');
+        }
+    }
+    async function onDisconnect() {
+        // 防止重入: 手动断开时 server.disconnect() 会触发 gattserverdisconnected 事件再回调一次
+        if (state.disconnecting) return;
+        state.disconnecting = true;
+        try {
+            // 真正断开 BLE 连接(之前只清理 UI, BLE 连接仍保持, 设备端一直处于连接态)
+            try {
+                if (state.server) { await state.server.disconnect(); state.server = null; }
+                state.device = null;
+            } catch (e) { console.error('断开 BLE 失败:', e); }
+            cleanResponse();
+            while (sendQueue.length > 0) { const t = sendQueue.shift(); t.reject(new Error('连接已断开')); }
+            sendProcessing = false;
+            rxBuffer = [];
+            const alreadyDisconnected = !state.connected && !state.txChar; // 已清理过则不重复日志
+            state.connected = false;
+            state.txChar = null;
+            $('deviceChip').textContent = '⚡ 设备: 无';
+            $('deviceVerBadge').textContent = '未读取';
+            setStatus('未连接');
+            $('btnConnect').style.display = 'inline-flex';
+            $('btnDisconnect').style.display = 'none';
+            $('btnDownload').disabled = true;
+            $('btnReadDevVer').disabled = true;
+            if (!alreadyDisconnected) log('🔌 已断开连接', 'warn');
+        } finally {
+            state.disconnecting = false;
+        }
+    }
+
+    // 查询设备当前固件版本 (CMD_APP_INFO), 返回版本对象或 null
+    async function queryDeviceVersion() {
+        if (!state.connected || !state.txChar) return null;
+        try {
+            const resp = await sendPacket(CMD_APP_INFO, null, 3000);
+            if (!resp || !resp.raw) return null;
+            const raw = new Uint8Array(resp.raw);
+            return parseFirmwareVersion(raw.slice(2, 4), false); // 大端序, 与设备实际返回一致
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // 读取设备当前固件版本 (按钮)
+    async function readDeviceVersion() {
+        if (!state.connected || !state.txChar) { alert('请先连接设备'); return; }
+        setStatus('读取版本中...', 'busy');
+        const ver = await queryDeviceVersion();
+        if (!ver) {
+            log('⏱️ 读取设备版本失败或超时', 'warn');
+            setStatus('已连接', 'connected');
+            return;
+        }
+        $('deviceVerBadge').textContent = 'v' + ver.versionString;
+        log('✅ 设备当前版本: v' + ver.versionString, 'ok');
+        setStatus('已连接', 'connected');
+    }
+
+    // 提取已加载固件的版本对象 {major,minor,patch,versionString} (未写入或配置错误时返回 null)
+    function getLoadedFirmwareVersion() {
+        if (!state.firmware || !lastFwMeta) return null;
+        try {
+            const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            const info = extractFirmwareVersion(state.firmware, lastFwMeta.base, vAddr, fSize);
+            return info.state === 'ok' ? info.version : null;
+        } catch (e) {
+            return null;
+        }
+    }
+    // 版本比较: a>b 返回 1, a==b 返回 0, a<b 返回 -1
+    function compareVersions(a, b) {
+        if (a.major !== b.major) return a.major > b.major ? 1 : -1;
+        if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1;
+        if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1;
+        return 0;
+    }
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ============================================================
+    //  文件解析 (复用)
+    // ============================================================
+    function onFileSelected(e) { const f = e.target.files[0]; if (f) loadFile(f); }
+    (function setupDrop() {
+        const z = $('fileDropZone');
+        z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('dragover'); });
+        z.addEventListener('dragleave', () => z.classList.remove('dragover'));
+        z.addEventListener('drop', e => { e.preventDefault(); z.classList.remove('dragover'); if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+    })();
+
+    // 页面内模态框输入(替代 prompt: Android WebView 的 prompt 默认值不生效)
+    function promptAddr(defaultVal) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('addrModal');
+            const input = document.getElementById('addrModalInput');
+            const okBtn = document.getElementById('addrModalOk');
+            const cancelBtn = document.getElementById('addrModalCancel');
+            input.value = defaultVal;
+            modal.style.display = 'flex';
+            const done = (val) => {
+                modal.style.display = 'none';
+                okBtn.onclick = null; cancelBtn.onclick = null;
+                input.onkeydown = null;
+                resolve(val);
+            };
+            okBtn.onclick = () => done(input.value);
+            cancelBtn.onclick = () => done(null);
+            input.onkeydown = (e) => { if (e.key === 'Enter') done(input.value); if (e.key === 'Escape') done(null); };
+            setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 50);
+        });
+    }
+    function loadFile(file) {
+        const isHex = file.name.toLowerCase().endsWith('.hex');
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                if (isHex) {
+                    // HEX: 读取为文本, 保存原始内容供分发逐行写入
+                    fwRawHex = e.target.result;
+                    const parsed = parseHex(fwRawHex);
+                    applyFirmware(file, parsed.data, parsed.baseAddr || FLASH_BASE);
+                    log(`解析 HEX 成功: ${parsed.data.length} 字节`, 'ok');
+                } else if (file.name.toLowerCase().endsWith('.bin')) {
+                    // Android WebView 的 prompt() 默认值不生效(空输入框),改用页面内模态框
+                    const addr = await promptAddr('0x08000000');
+                    if (addr === null) return;
+                    const baseAddr = parseInt(addr, 16);
+                    if (isNaN(baseAddr)) throw new Error('无效地址');
+                    const data = new Uint8Array(e.target.result);
+                    fwRawHex = null;
+                    applyFirmware(file, data, baseAddr);
+                    log(`解析 BIN 成功: ${data.length} 字节`, 'ok');
+                } else { alert('请使用 .hex 或 .bin 文件'); return; }
+            } catch (err) { log('❌ 解析失败: ' + err.message, 'err'); alert('解析失败: ' + err.message); }
+        };
+        isHex ? reader.readAsText(file) : reader.readAsArrayBuffer(file);
+    }
+
+    // 固件解析成功后统一填充 UI 并刷新版本/分发预览 (固件加载与 OTA 分发共用)
+    function applyFirmware(file, data, base) {
+        state.firmware = data;
+        const blocks = [];
+        for (let i = 0; i < data.length; i += 64) {
+            blocks.push({ addr: base + i, data: data.slice(i, Math.min(i + 64, data.length)), len: Math.min(64, data.length - i) });
+        }
+        state.blocks = blocks;
+        state.totalBlocks = blocks.length;
+        lastFwMeta = { name: file.name, size: data.length, base };
+        // 固件加载面板
+        $('fileName').textContent = file.name;
+        $('fileHint').textContent = '✅ 已加载 ' + file.name;
+        $('fileInfo').style.display = 'flex';
+        $('fileSize').textContent = data.length + ' B';
+        $('fileAddr').textContent = fmtAddr(base);
+        $('fileBlocks').textContent = blocks.length;
+        refreshFwVersionDisplay();
+        $('btnDownload').disabled = !state.connected;
+        // 版本·分发合并面板 (共用同一固件)
+        $('distSrcInfo').textContent = `当前固件: ${file.name} (${data.length} B, 起始 ${fmtAddr(base)})`;
+        $('distBaseAddr').value = fmtAddr(base);
+        $('btnDistWrite').disabled = false;
+        invalidateDistResult(); // 固件变化后旧写入结果失效
+        refreshDistPreview();
+        log(`📦 固件就绪: ${data.length} 字节, ${blocks.length} 块`, 'info');
+    }
+
+    function parseHex(text) {
+        const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+        let baseAddr = 0, dataMap = new Map();
+        for (const line of lines) {
+            if (!line.startsWith(':')) continue;
+            const bytes = hexToBytes(line.substring(1));
+            if (bytes.length < 5) continue;
+            const len = bytes[0], addr = (bytes[1] << 8) | bytes[2], type = bytes[3], d = bytes.slice(4, 4 + len);
+            if (type === 0x00) {
+                const full = baseAddr + addr;
+                if (dataMap.has(full)) { const ex = dataMap.get(full); const c = new Uint8Array(ex.length + d.length); c.set(ex, 0); c.set(d, ex.length); dataMap.set(full, c); }
+                else dataMap.set(full, new Uint8Array(d));
+            } else if (type === 0x01) break;
+            else if (type === 0x04) baseAddr = (d[0] << 8 | d[1]) << 16;
+            else if (type === 0x02) baseAddr = (d[0] << 8 | d[1]) << 4;
+        }
+        if (dataMap.size === 0) throw new Error('HEX无数据');
+        const sorted = Array.from(dataMap.keys()).sort((a, b) => a - b);
+        const first = sorted[0];
+        let max = first;
+        for (const a of sorted) { const end = a + dataMap.get(a).length; if (end > max) max = end; }
+        const result = new Uint8Array(max - first);
+        result.fill(0xFF);
+        for (const a of sorted) result.set(dataMap.get(a), a - first);
+        return { data: result, size: result.length, baseAddr: first, blocks: [] };
+    }
+    function hexToBytes(hex) { const b = []; for (let i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substring(i, i + 2), 16)); return b; }
+
+    // ============================================================
+    //  版本提取 (复用)
+    // ============================================================
+    function parseHexNum(str, label) {
+        let s = String(str).trim();
+        if (s.startsWith('0x') || s.startsWith('0X')) s = s.substring(2);
+        const v = parseInt(s, 16);
+        if (isNaN(v) || v < 0) throw new Error(label + ' 无效: ' + str);
+        return v;
+    }
+    function parseFirmwareVersion(bytes, littleEndian = true) {
+        if (bytes.length < 2) throw new Error('版本数据长度不足');
+        const version = littleEndian ? (bytes[0] | (bytes[1] << 8)) : ((bytes[0] << 8) | bytes[1]);
+        return {
+            major: (version >> 11) & 0x1F, minor: (version >> 6) & 0x1F, patch: version & 0x3F,
+            versionString: `${(version >> 11) & 0x1F}.${(version >> 6) & 0x1F}.${version & 0x3F}`,
+            raw: version
+        };
+    }
+    function extractFirmwareVersion(firmwareData, baseAddr, versionAddr, flashSize) {
+        if (versionAddr < FLASH_BASE || versionAddr >= FLASH_BASE + flashSize) {
+            throw new Error(`版本地址 0x${versionAddr.toString(16)} 超出硬件 Flash 范围`);
+        }
+        const offset = versionAddr - baseAddr;
+        if (offset < 0 || offset + 2 > firmwareData.length) return { state: 'unprogrammed', version: null, bytes: null, offset };
+        return { state: 'ok', version: parseFirmwareVersion(firmwareData.slice(offset, offset + 4)), offset };
+    }
+    function refreshFwVersionDisplay() {
+        if (!lastFwMeta) return;
+        try {
+            const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            const info = extractFirmwareVersion(state.firmware, lastFwMeta.base, vAddr, fSize);
+            let verTxt;
+            if (info.state === 'ok') verTxt = 'v' + info.version.versionString;
+            else verTxt = info.offset < 0 ? '固件前' : '未写入 FF';
+            $('fileVer').textContent = verTxt;
+            $('fwChip').innerHTML = '📦 固件: <b>' + lastFwMeta.name + '</b> <span class="ver-badge">' + verTxt + '</span>';
+        } catch (e) {
+            $('fileVer').textContent = '超出Flash';
+            $('fwChip').textContent = '📦 固件: ' + lastFwMeta.name;
+        }
+        try {
+            const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            const base = lastFwMeta ? lastFwMeta.base : FLASH_BASE;
+            const off = vAddr - base;
+            $('fwVerOffset').textContent = '偏移: ' + fmtOff(off) + (off < 0 ? ' (固件前)' : '');
+        } catch (e) { $('fwVerOffset').textContent = '偏移: --'; }
+    }
+    $('flashSize').addEventListener('input', refreshFwVersionDisplay);
+    $('fwVersionAddr').addEventListener('input', refreshFwVersionDisplay);
+
+    // 版本配置 · OTA 分发: 现已默认显示不折叠, 标题已移除, toggleVerDist 保留为兼容空函数
+    function toggleVerDist() { /* no-op: 面板默认显示, 不再折叠 */ }
+
+    // 手机模式 tab 分页: 切换显示 固件加载/分发配置(升级流程常显)
+    function switchSec(secId) {
+        ['sec-fw', 'sec-ver-dist'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('show', id === secId);
+        });
+        document.querySelectorAll('.sec-tab').forEach(b => b.classList.toggle('active', b.dataset.sec === secId));
+    }
+    // tab 点击绑定 + 手机模式初始显示"固件加载"
+    (function () {
+        document.querySelectorAll('.sec-tab').forEach(b => b.addEventListener('click', () => switchSec(b.dataset.sec)));
+        if (window.innerWidth <= 640) switchSec('sec-fw');
+    })();
+
+    // UUID 折叠: 每次"进入"手机模式(桌面→手机 或 首次加载即手机)默认收起, 进入桌面默认展开;
+    // 同模式内的 resize(如移动端软键盘/地址栏收缩)不强制, 保留用户手动展开/收起状态
+    let lastMobile = null;
+    function syncUuidFold() {
+        const fold = document.getElementById('uuidFold');
+        if (!fold) return;
+        const isMobile = window.innerWidth <= 640;
+        if (lastMobile === isMobile) return; // 同模式内变化, 保留手动状态
+        lastMobile = isMobile;
+        if (isMobile) fold.removeAttribute('open');
+        else fold.setAttribute('open', ''); // 桌面始终展开(否则隐藏 summary 后无法显示)
+    }
+    syncUuidFold();
+    window.addEventListener('resize', syncUuidFold);
+
+    // ============================================================
+    //  版本配置 · OTA 分发 (写入与下载分开)
+    // ============================================================
+    let distResult = null;   // { blob, outName, info } 写入成功后的待下载结果
+
+    function parseVersionInput(str) {
+        const p = String(str).trim().split('.');
+        if (p.length < 2 || p.length > 3) throw new Error('版本号格式 major.minor[.patch]');
+        const major = parseInt(p[0], 10), minor = parseInt(p[1], 10), patch = p.length === 3 ? parseInt(p[2], 10) : 0;
+        if (isNaN(major) || isNaN(minor) || isNaN(patch)) throw new Error('版本号含非数字');
+        if (major < 0 || major > 31 || minor < 0 || minor > 31 || patch < 0 || patch > 63) throw new Error('范围: major 0-31, minor 0-31, patch 0-63');
+        return { major, minor, patch, value: (major << 11) | (minor << 6) | patch };
+    }
+
+    // 刷新"版本号"输入框下方的写入预览 (偏移处版本 / 待扩展状态)
+    function refreshDistPreview() {
+        if (!state.firmware || !lastFwMeta) { $('distPreview').textContent = '偏移处: --'; return; }
+        try {
+            const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            const base = parseHexNum($('distBaseAddr').value, '固件起始地址');
+            const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distPreview').textContent = '版本地址超出硬件Flash'; return; }
+            const off = vAddr - base;
+            if (off < 0) { $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' (将前补 0x' + (-off).toString(16).toUpperCase() + 'B)'; return; }
+            if (off + 2 > state.firmware.length) { $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' (未写入, 将扩展 0x' + (off + 2 - state.firmware.length).toString(16).toUpperCase() + 'B)'; return; }
+            const bytes = state.firmware.slice(off, off + 2);
+            const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            $('distPreview').textContent = '偏移 ' + fmtOff(off) + ' 当前: ' + parseFirmwareVersion(bytes).versionString + ' [' + hex + ']';
+        } catch (e) { $('distPreview').textContent = '偏移处: ' + e.message; }
+    }
+    // 配置/固件变化后, 使已写入的结果失效; 状态区回显偏移处固件实际版本
+    function invalidateDistResult() {
+        distResult = null;
+        $('btnDistDownload').disabled = true;
+        $('distStatus').style.color = '';
+        if (!state.firmware || !lastFwMeta) { $('distStatus').textContent = '未写入'; return; }
+        try {
+            const vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            const base = parseHexNum($('distBaseAddr').value, '固件起始地址');
+            const fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) { $('distStatus').textContent = '版本地址超出Flash'; return; }
+            const off = vAddr - base;
+            if (off < 0) { $('distStatus').textContent = '版本地址在固件前'; return; }
+            if (off + 2 > state.firmware.length) { $('distStatus').textContent = '偏移处未写入 (FF FF)'; return; }
+            const b0 = state.firmware[off], b1 = state.firmware[off + 1];
+            if (b0 === 0xFF && b1 === 0xFF) { $('distStatus').textContent = '偏移处未写入 (FF FF)'; return; }
+            $('distStatus').textContent = '偏移处版本: v' + parseFirmwareVersion(state.firmware.slice(off, off + 2)).versionString;
+        } catch (e) { $('distStatus').textContent = '未写入'; }
+    }
+    // 仅"写入"：在内存中生成新固件, 不自动下载
+    function onDistWrite() {
+        if (!state.firmware || !lastFwMeta) { alert('请先在"固件加载"处选择固件文件'); return; }
+        let verObj, vAddr, base, fSize;
+        try {
+            verObj = parseVersionInput($('distVersion').value);
+            vAddr = parseHexNum($('fwVersionAddr').value, '版本地址');
+            base = parseHexNum($('distBaseAddr').value, '固件起始地址');
+            fSize = parseHexNum($('flashSize').value, 'Flash 大小');
+            if (vAddr < FLASH_BASE || vAddr >= FLASH_BASE + fSize) throw new Error('版本地址超出硬件 Flash 范围');
+        } catch (e) { alert(e.message); return; }
+        try {
+            const lo = verObj.value & 0xFF, hi = (verObj.value >> 8) & 0xFF;
+            const isHex = !!fwRawHex;
+            const verTag = '_v' + verObj.major + '.' + verObj.minor + '.' + verObj.patch;
+            const outName = lastFwMeta.name.replace(/\.(hex|bin)$/i, '') + verTag + '.' + (isHex ? 'hex' : 'bin');
+            let blob, info;
+            if (isHex) {
+                const patched = hexPatchExtend(fwRawHex, base, state.firmware.length, vAddr, lo, hi);
+                blob = new Blob([patched], { type: 'application/octet-stream' });
+                info = `HEX v${verObj.major}.${verObj.minor}.${verObj.patch} @${fmtAddr(vAddr)}`;
+                log('✍️ ' + info + ' (已写入, 可下载)', 'ok');
+                // 重载当前固件为写入后的数据 (HEX 重新解析, 起始地址可能前移)
+                fwRawHex = patched;
+                const p = parseHex(patched);
+                reloadFirmware(p.data, p.baseAddr || FLASH_BASE);
+            } else {
+                const newStart = Math.min(base, vAddr);
+                const newLen = Math.max(base + state.firmware.length, vAddr + 2) - newStart;
+                const data = new Uint8Array(newLen);
+                data.fill(0xFF);
+                data.set(state.firmware, base - newStart);
+                data[vAddr - newStart] = lo;
+                data[vAddr - newStart + 1] = hi;
+                blob = new Blob([data.buffer], { type: 'application/octet-stream' });
+                info = `BIN v${verObj.major}.${verObj.minor}.${verObj.patch} @${fmtAddr(vAddr)}`;
+                log('✍️ ' + info + ' (已写入, 可下载)', 'ok');
+                if (newLen !== state.firmware.length) log(`📦 固件扩展 ${state.firmware.length} → ${newLen} 字节 (+${newLen - state.firmware.length})`, 'info');
+                // 重载当前固件为写入后的数据
+                reloadFirmware(data, newStart);
+            }
+            log('🔄 当前固件已更新为写入后的版本', 'info');
+            distResult = { blob, outName, info };
+            $('distStatus').textContent = '✅ 已写入 ' + info;
+            $('distStatus').style.color = 'var(--ok)';
+            $('btnDistDownload').disabled = false;
+        } catch (e) { log('❌ 写入失败: ' + e.message, 'err'); alert('写入失败: ' + e.message); }
+    }
+    // 写入成功后, 将内存中的当前固件替换为写入后的数据并刷新各面板
+    function reloadFirmware(data, base) {
+        const blocks = [];
+        for (let i = 0; i < data.length; i += 64) {
+            blocks.push({ addr: base + i, data: data.slice(i, Math.min(i + 64, data.length)), len: Math.min(64, data.length - i) });
+        }
+        state.firmware = data;
+        state.blocks = blocks;
+        state.totalBlocks = blocks.length;
+        lastFwMeta = { name: lastFwMeta.name, size: data.length, base };
+        $('fileSize').textContent = data.length + ' B';
+        $('fileAddr').textContent = fmtAddr(base);
+        $('fileBlocks').textContent = blocks.length;
+        $('fileHint').textContent = '✅ 版本已写入, 当前固件已更新: ' + lastFwMeta.name;
+        $('distSrcInfo').textContent = `当前固件: ${lastFwMeta.name} (${data.length} B, 起始 ${fmtAddr(base)})`;
+        $('distBaseAddr').value = fmtAddr(base);
+        refreshFwVersionDisplay();
+        refreshDistPreview();
+    }
+    // 仅"下载"：导出已写入的新固件
+    function onDistDownload() {
+        if (!distResult) { alert('请先点击"写入版本号"'); return; }
+        downloadBlob(distResult.blob, distResult.outName);
+        log('📥 已导出: ' + distResult.outName, 'ok');
+    }
+    // 配置变化: 刷新预览并使旧结果失效
+    $('distBaseAddr').addEventListener('input', () => { refreshDistPreview(); invalidateDistResult(); });
+    $('distVersion').addEventListener('input', invalidateDistResult);
+    $('fwVersionAddr').addEventListener('input', () => { refreshFwVersionDisplay(); refreshDistPreview(); invalidateDistResult(); });
+    $('flashSize').addEventListener('input', () => { refreshFwVersionDisplay(); refreshDistPreview(); invalidateDistResult(); });
+
+    // 逐行保留 + 缺失区域追加 (复用 v0.3.0 逻辑)
+    function hexPatchExtend(text, baseAddr, dataLen, versionAbs, b0, b1) {
+        const writes = new Map([[versionAbs, b0], [versionAbs + 1, b1]]);
+        let segBase = 0;
+        const head = [], segs = [];
+        let endRec = ':00000001FF';
+        for (const line of text.split(/\r?\n/)) {
+            if (!line.startsWith(':')) { head.push(line); continue; }
+            const bytes = hexToBytes(line.substring(1));
+            if (bytes.length < 5) { head.push(line); continue; }
+            const len = bytes[0], addr = (bytes[1] << 8) | bytes[2], type = bytes[3];
+            if (type === 0x04) { segBase = ((bytes[4] << 8) | bytes[5]) << 16; head.push(line); continue; }
+            if (type === 0x02) { segBase = ((bytes[4] << 8) | bytes[5]) << 4; head.push(line); continue; }
+            if (type === 0x01) { endRec = line; continue; }
+            if (type !== 0x00) { head.push(line); continue; }
+            const lineAbs = segBase + addr;
+            let modified = false;
+            const d = bytes.slice(4, 4 + len);
+            for (const [pos, val] of writes) { const rel = pos - lineAbs; if (rel >= 0 && rel < len) { d[rel] = val; writes.delete(pos); modified = true; } }
+            segs.push({ start: lineAbs, end: lineAbs + len });
+            if (modified) { const body = [len, (addr >> 8) & 0xFF, addr & 0xFF, type, ...d]; let s = 0; for (const b of body) s += b; head.push(':' + body.concat((-s) & 0xFF).map(x => x.toString(16).padStart(2, '0').toUpperCase()).join('')); }
+            else head.push(line);
+        }
+        const covered = pos => segs.some(s => pos >= s.start && pos < s.end);
+        const missing = Array.from(writes.keys()).filter(p => !covered(p));
+        const parsed = parseHex(text);
+        const pBase = parsed.baseAddr || FLASH_BASE;
+        const full = parsed.data;
+        const blocks = new Map();
+        for (const pos of missing) {
+            const blk = pos & ~0xF;
+            if (!blocks.has(blk)) {
+                const arr = new Uint8Array(16); arr.fill(0xFF);
+                for (let i = 0; i < 16; i++) { const rel = blk + i - pBase; if (rel >= 0 && rel < full.length) arr[i] = full[rel]; }
+                blocks.set(blk, arr);
+            }
+        }
+        for (const [pos, val] of writes) { const blk = pos & ~0xF; if (blocks.has(blk)) blocks.get(blk)[pos & 0xF] = val; }
+        const blkAddrs = Array.from(blocks.keys()).sort((a, b) => a - b);
+        const tail = [];
+        let lastHi = -1;
+        for (const blk of blkAddrs) {
+            const hi = (blk >> 16) & 0xFFFF;
+            if (hi !== lastHi) { tail.push(mkLine([0x02, 0x00, 0x00, 0x04, (hi >> 8) & 0xFF, hi & 0xFF])); lastHi = hi; }
+            tail.push(mkLine([16, (blk >> 8) & 0xFF, blk & 0xFF, 0x00, ...blocks.get(blk)]));
+        }
+        return head.concat(tail, endRec ? [endRec] : []).filter(l => l !== '').join('\r\n');
+        function mkLine(body) { let s = 0; for (const b of body) s += b; return ':' + body.concat((-s) & 0xFF).map(x => x.toString(16).padStart(2, '0').toUpperCase()).join(''); }
+    }
+    function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result).split(',')[1] || '');
+            r.onerror = reject;
+            r.readAsDataURL(blob);
+        });
+    }
+    function downloadBlob(blob, filename) {
+        // Android App (Capacitor): 优先 FileSaver(自写插件, 标准"创建文档"SAF 对话框);
+        // 回退 Filesystem(DOCUMENTS→EXTERNAL); 再回退 a[download](仅桌面浏览器有效)
+        const cap = window.Capacitor && window.Capacitor.Plugins;
+        const SV = cap && cap.FileSaver;
+        const FS = cap && cap.Filesystem;
+        if (SV) {
+            blobToBase64(blob)
+                .then(b64 => SV.save({ filename: filename, data: b64 }))
+                .then(() => {
+                    log(`📥 已导出: ${filename}`, 'ok');
+                    log('📁 已通过系统保存对话框保存', 'info');
+                })
+                .catch(err => {
+                    const msg = err && err.message ? err.message : String(err);
+                    alert('导出失败: ' + msg + (msg === '已取消保存' ? '' : '\n(请重试, 并在系统对话框中确认保存位置)'));
+                    console.error('FileSaver save failed', err);
+                });
+            return;
+        }
+        if (FS) {
+            blobToBase64(blob)
+                .then(b64 => FS.writeFile({ path: filename, data: b64, directory: 'DOCUMENTS' })
+                    .catch(() => FS.writeFile({ path: filename, data: b64, directory: 'EXTERNAL' })))
+                .then(res => {
+                    const where = res && res.uri ? res.uri : filename;
+                    log(`📥 已保存: ${filename}`, 'ok');
+                    log(`📁 位置: ${where}`, 'info');
+                    alert(`✅ 固件已保存\n文件: ${filename}\n位置: ${where}`);
+                })
+                .catch(err => {
+                    console.error('Filesystem save failed', err);
+                    alert('保存失败: ' + (err && err.message ? err.message : err));
+                    fallbackDownload(blob, filename);
+                });
+            return;
+        }
+        fallbackDownload(blob, filename);
+    }
+    function fallbackDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // ============================================================
+    //  下载流程 (真实 IAP)
+    // ============================================================
+    function setPill(id, cls) {
+        const el = $(id);
+        el.className = 'step-pill';
+        if (cls) el.classList.add(cls);
+    }
+    async function onStartDownload() {
+        if (state.busy) return;
+        if (!state.firmware || state.blocks.length === 0) { alert('请先加载固件'); return; }
+        if (!state.connected || !state.txChar) { alert('请先连接蓝牙设备'); return; }
+
+        // ===== 升级前: 查询设备版本与固件版本, 确认升级 (允许相同版本/降级, 需强制刷写确认) =====
+        const fwVer = getLoadedFirmwareVersion();
+        if (!fwVer) {
+            alert('无法提取固件版本号 (固件中未写入版本或版本地址/Flash 配置不正确), 已中止升级。\n请先在"版本配置 · OTA 分发"中确认并写入版本号。');
+            log('⛔ 中止升级: 无法提取固件版本号', 'err');
+            return;
+        }
+        const fwStr = fwVer.versionString;
+        setStatus('查询设备版本中...', 'busy');
+        log('📡 升级前查询设备当前版本...', 'info');
+        const devVer = await queryDeviceVersion();
+        const devStr = devVer ? devVer.versionString : '未知';
+        let forceFlash = false;
+        let msg;
+        if (!devVer) {
+            msg = `无法读取设备当前版本 (将按未知处理)。\n固件版本 v${fwStr}, 确认开始升级?`;
+        } else {
+            const cmp = compareVersions(fwVer, devVer);
+            if (cmp > 0) {
+                msg = `将从 v${devStr} 升级到 v${fwStr}, 确认开始升级?`;
+            } else if (cmp === 0) {
+                forceFlash = true;
+                msg = `⚠️ 设备当前已是 v${devStr}, 与固件版本 v${fwStr} 相同。\n确认强制刷写?`;
+            } else {
+                forceFlash = true;
+                msg = `⚠️ 固件版本 v${fwStr} 低于设备当前 v${devStr} (降级)。\n确认强制刷写?`;
+            }
+        }
+        if (!confirm(msg)) {
+            log('⏹ 用户取消升级', 'warn');
+            $('downloadStatus').textContent = '已取消升级';
+            $('downloadStatus').style.color = 'var(--warn)';
+            setStatus(state.connected ? '已连接' : '未连接', state.connected ? 'connected' : '');
+            return;
+        }
+        if (forceFlash) {
+            log('⚠️ 用户确认强制刷写 (相同版本/降级)', 'warn');
+            $('downloadStatus').textContent = '强制刷写中...';
+            $('downloadStatus').style.color = 'var(--warn)';
+        } else {
+            log(`✅ 已确认: v${devStr} → v${fwStr}`, 'ok');
+        }
+
+        // ===== 执行升级 =====
+        state.busy = true;
+        state.abortFlag = false;
+        state.doneBlocks = 0;
+        $('btnDownload').disabled = true;
+        $('btnAbort').disabled = false;
+        setStatus('下载中...', 'busy');
+        $('downloadStatus').textContent = '正在执行 IAP...';
+        log('🚀 开始 IAP 下载流程', 'info');
+        const upgradeOK = await realDownload();
+
+        // ===== 升级后: 查询设备版本, 校验是否升级成功 =====
+        if (upgradeOK) {
+            log('🔍 升级后校验设备版本...', 'info');
+            const devNow = await queryDeviceVersion();
+            const nowStr = devNow ? devNow.versionString : '未知';
+            if (devNow && devNow.versionString === fwStr) {
+                $('deviceVerBadge').textContent = 'v' + fwStr;
+                $('downloadStatus').textContent = `升级成功 ✅ 设备版本 v${fwStr}`;
+                $('downloadStatus').style.color = 'var(--ok)';
+                setProgress(100, '升级成功! ✅');
+                log(`🎉 版本校验通过: 设备已升级到 v${fwStr}`, 'ok');
+                finish(true, '');
+            } else {
+                $('downloadStatus').textContent = '升级完成, 但版本校验未通过 ⚠️';
+                $('downloadStatus').style.color = 'var(--warn)';
+                log(`⚠️ 版本校验未通过: 设备当前 v${nowStr}, 期望 v${fwStr}`, 'warn');
+                finish(false, `版本校验未通过: 设备当前 v${nowStr}, 期望 v${fwStr}`);
+            }
+        }
+    }
+
+    // 真实下载: 队列版 sendPacket 完整 IAP 流程, 成功返回 true, 失败返回 false
+    async function realDownload() {
+        const eraseTimeoutMs = parseInt($('eraseTimeout').value) * 1000;
+        const cmdTimeoutMs = parseInt($('cmdTimeout').value) * 1000;
+        log(`⏱️ 擦除超时 ${eraseTimeoutMs / 1000}s, 命令超时 ${cmdTimeoutMs / 1000}s`, 'info');
+        try {
+            // 0. 跳转 IAP (若支持, 失败忽略)
+            setPill('spErase', 'active');
+            setProgress(1, '跳转 IAP...');
+            log('📤 发送跳转IAP命令 (若支持)...', 'info');
+            try {
+                const jumpResp = await sendPacket(CMD_JUMP_IAP, null, 3000);
+                if (jumpResp.success) {
+                    log('✅ 跳转IAP成功', 'ok');
+                    const waitMs = parseFloat($('jumpWait').value) * 1000;
+                    if (waitMs > 0) {
+                        log(`⏳ 等待 ${waitMs / 1000} 秒...`, 'info');
+                        await delay(waitMs);
+                    }
+                } else {
+                    throw new Error('跳转IAP响应异常 (状态码非成功)');
+                }
+            } catch (e) {
+                log('ℹ️ 跳转IAP忽略: ' + e.message, 'warn');
+            }
+
+            // 1. 擦除
+            setPill('spErase', 'active');
+            setProgress(2, '擦除 Flash...');
+            log('🧹 发送擦除命令...', 'info');
+            const eraseResp = await sendPacket(CMD_IAP_ERASE, null, eraseTimeoutMs, [0, 0, 0, 0]);
+            if (!eraseResp.success) throw new Error('擦除失败: ' + (eraseResp.error || '设备错误'));
+            setPill('spErase', 'done');
+            setPill('spProgram', 'active');
+            log('✅ 擦除完成', 'ok');
+            setProgress(5, '擦除完成');
+
+            // 2. 编程 (逐块)
+            const blocks = state.blocks;
+            const total = blocks.length;
+            for (let i = 0; i < total; i++) {
+                if (state.abortFlag) throw new Error('用户中止');
+                const resp = await sendPacket(CMD_IAP_PROM, blocks[i].data, cmdTimeoutMs);
+                if (!resp.success) throw new Error(`编程块 ${i + 1}/${total} 失败: ${resp.error || '错误'}`);
+                state.doneBlocks = i + 1;
+                setProgress(5 + ((i + 1) / total) * 70, `编程中 ${i + 1}/${total} 块`);
+                if (i % 10 === 0 || i === total - 1) log(`📦 编程进度: ${i + 1}/${total}`, 'info');
+            }
+            setPill('spProgram', 'done');
+            setPill('spVerify', 'active');
+            log('✅ 编程完成 ' + total + ' 块', 'ok');
+            setProgress(77, '编程完成');
+
+            // 3. 验证 (逐块)
+            for (let i = 0; i < total; i++) {
+                if (state.abortFlag) throw new Error('用户中止');
+                const resp = await sendPacket(CMD_IAP_VERIFY, blocks[i].data, cmdTimeoutMs, [0, 0, 0, 0]);
+                if (!resp.success) throw new Error(`验证块 ${i + 1}/${total} 失败: ${resp.error || '不匹配'}`);
+                setProgress(77 + ((i + 1) / total) * 20, `验证中 ${i + 1}/${total} 块`);
+                if (i % 10 === 0 || i === total - 1) log(`🔍 验证进度: ${i + 1}/${total}`, 'info');
+            }
+            setPill('spVerify', 'done');
+            setPill('spEnd', 'active');
+            log('✅ 验证完成', 'ok');
+            setProgress(97, '验证完成');
+
+            // 4. 结束 (无响应)
+            log('🏁 发送结束命令...', 'info');
+            await sendEndCommand();
+            setPill('spEnd', 'done');
+            setProgress(100, '下载完成! ✅');
+            $('downloadStatus').textContent = '下载完成! ✅';
+            $('downloadStatus').style.color = 'var(--ok)';
+            log('🎉 IAP 全部流程完成!', 'ok');
+            finish(true, '');
+            return true;
+        } catch (err) {
+            finish(false, err.message);
+            return false;
+        }
+    }
+    function setProgress(pct, label) {
+        const c = Math.min(100, Math.max(0, pct));
+        $('progressFill').style.width = c + '%';
+        $('progressPercent').textContent = c.toFixed(1) + '%';
+        if (label) $('progressText').textContent = label;
+    }
+    function onAbort() {
+        if (!state.busy) return;
+        state.abortFlag = true;
+        log('⏹ 正在中止...', 'warn');
+        $('btnAbort').disabled = true;
+        cleanResponse(); // 立即中断当前等待的命令
+    }
+    function finish(ok, msg) {
+        state.busy = false;
+        $('btnAbort').disabled = true;
+        $('btnDownload').disabled = !state.connected || !state.firmware;
+        if (ok) setStatus(state.connected ? '已连接' : '未连接', state.connected ? 'connected' : '');
+        else { log('❌ 下载失败: ' + msg, 'err'); setStatus('下载失败', 'error'); }
+    }
+
+    log('🔷 MegaHz BLE OTA Studio 已加载', 'info');
+</script>
+<!-- 原生 BLE 桥接: WebView 无 Web Bluetooth 时提供 navigator.bluetooth -->
+<script src="js/bluetooth-le.bundle.js"></script>
+    <script src="js/ble-polyfill.js"></script>
+<!-- BIN 起始地址输入模态框 (替代 prompt) -->
+<div id="addrModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:#fff;color:#222;padding:20px;border-radius:10px;min-width:300px;box-shadow:0 4px 20px rgba(0,0,0,.3);font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
+    <div style="font-weight:bold;margin-bottom:12px;font-size:15px;">请输入 BIN 起始地址 (十六进制)</div>
+    <input id="addrModalInput" value="0x08000000" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccc;border-radius:6px;font-family:Consolas,monospace;font-size:14px;">
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end;">
+      <button id="addrModalCancel" style="padding:8px 18px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;">取消</button>
+      <button id="addrModalOk" style="padding:8px 18px;border:none;border-radius:6px;background:#2f6fed;color:#fff;cursor:pointer;">确定</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
